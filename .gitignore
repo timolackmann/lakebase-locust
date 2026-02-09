@@ -1,0 +1,24 @@
+# Virtual environment (recreate with: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt)
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE / OS
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+
+# Locust
+*.log
