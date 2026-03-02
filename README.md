@@ -28,7 +28,7 @@ There are two modes, each with its own example config:
 
 - Edit `config.json`:
   - **workspace**: `host`, `client_id`, `client_secret` (Databricks workspace OAuth app)
-  - **lakebase**: `mode: "provisioned"`, `instance_names` (list of instance names), `schema`, `user`
+  - **lakebase**: `mode: "provisioned"`, `instance_names` (list of instance names), `database`, `user`
 
 - Required: `lakebase.instance_names` must be a non-empty list. The code uses the first instance and `workspace.database` APIs to get connection details and credentials.
 
@@ -42,9 +42,50 @@ There are two modes, each with its own example config:
 
 - Edit `config.json`:
   - **workspace**: same as above
-  - **lakebase**: `mode: "autoscale"`, `project_id`, `branch_id`, `endpoint_id`, `schema`, `user`
+  - **lakebase**: `mode: "autoscale"`, `project_id`, `branch_id`, `endpoint_id`, `database`, `user`
 
 - Required: `project_id`, `branch_id`, and `endpoint_id`. The code uses `workspace.postgres` APIs to resolve the endpoint and generate credentials.
+
+### Optional: Create a service principal with `setup_service_principal.py`
+
+Before running Locust, you can optionally use **`setup_service_principal.py`** to create a Databricks service principal, write its `client_id` and `client_secret` into your config, and grant that service principal OAuth access to the Lakebase Postgres instance. This is useful if you do not yet have a service principal and want the script to create one and configure it for you.
+
+**What the script does:**
+
+- Creates a service principal in your Databricks workspace
+- Generates a secret for the service principal
+- Writes `workspace.client_id`, `workspace.client_secret`, and `lakebase.user` into your config file
+- Grants the service principal OAuth access to the Lakebase Postgres database (creates the role and grants privileges)
+
+**Required parameters in `config.json` to run the script:**
+
+| Parameter | Required | Notes |
+|-----------|----------|--------|
+| `workspace.host` | Yes | Your Databricks workspace URL (e.g. `https://….cloud.databricks.com`). The script does not need `client_id` or `client_secret` in config beforehand; it will add them. |
+| `lakebase` | Yes | Must contain the Lakebase section. |
+| `lakebase.mode` | Yes | Either `"provisioned"` or `"autoscale"`. |
+| **If mode is `"autoscale"`** | | |
+| `lakebase.project_id` | Yes | Lakebase project ID. |
+| `lakebase.branch_id` | Yes | Branch ID. |
+| `lakebase.endpoint_id` | Yes | Endpoint ID (e.g. `"primary"`). |
+| **If mode is `"provisioned"`** | | |
+| `lakebase.instance_names` | Yes | Non-empty list of instance names. |
+
+Optional: `lakebase.database` (defaults to `databricks_postgres` if omitted).
+
+**Prerequisites:** Databricks CLI installed and authenticated to the same workspace (e.g. `databricks auth login` or a configured profile). The script uses the workspace-level CLI only.
+
+**Usage:**
+
+```bash
+python setup_service_principal.py [--profile PROFILE] [--display-name NAME] [--config PATH]
+```
+
+- `--profile`: Databricks CLI profile (default: `DEFAULT` or `DATABRICKS_CLI_PROFILE`).
+- `--display-name`: Display name for the new service principal (default: `locust-lakebase-sp`).
+- `--config`: Path to config file (default: `config.json` or `CONFIG_PATH`).
+
+After the script runs successfully, your config will contain the new `client_id` and `client_secret`, and you can run Locust as described in **Running Locust**.
 
 ### Using a different config path
 

@@ -9,7 +9,7 @@
     "project_id": "<project_id>",
     "branch_id": "<branch_id>",
     "endpoint_id": "<endpoint_id>",
-    "schema": "databricks_postgres",
+    "database": "databricks_postgres",
     "user": "<service_principal_or_user>"
   }
 }

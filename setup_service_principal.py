@@ -91,18 +91,34 @@ def main():
     print(f"  client_id (application_id): {client_id}")
 
     # 2) Create OAuth secret (workspace CLI: service-principal-secrets-proxy)
+    # CLI sometimes returns "User is not authorized to perform this operation." even when it succeeds, so we
+    # verify we got a secret and retry once if not.
     client_secret = None
-    try:
-        secret_out = run_cli("service-principal-secrets-proxy", "create", str(sp_id), profile=profile)
-        if isinstance(secret_out, dict):
-            client_secret = secret_out.get("secret") or secret_out.get("value") or secret_out.get("client_secret")
-        if not client_secret and isinstance(secret_out, str):
-            client_secret = secret_out
-        if not client_secret:
-            print("Could not read client_secret from service-principal-secrets-proxy create output. Add it manually to config.", file=sys.stderr)
-            print("Run: databricks service-principal-secrets-proxy create", sp_id, "-p", profile, "-o json", file=sys.stderr)
-    except Exception as e:
-        print("Creating OAuth secret failed:", e, file=sys.stderr)
+    last_error = None
+    for attempt in range(2):
+        try:
+            secret_out = run_cli("service-principal-secrets-proxy", "create", str(sp_id), profile=profile)
+            if isinstance(secret_out, dict):
+                client_secret = secret_out.get("secret") or secret_out.get("value") or secret_out.get("client_secret")
+            if not client_secret and isinstance(secret_out, str):
+                client_secret = secret_out
+            if client_secret:
+                break
+            last_error = "No secret in create response"
+        except Exception as e:
+            last_error = e
+            if attempt == 0 and "not authorized" in str(e).lower():
+                print("Secret create returned authorization error, retrying once...", file=sys.stderr)
+            elif attempt == 1:
+                break
+        if not client_secret and attempt == 0:
+            print("Secret not created or not returned, retrying once...", file=sys.stderr)
+
+    if not client_secret:
+        print("Could not read client_secret from service-principal-secrets-proxy create output. Add it manually to config.", file=sys.stderr)
+        if last_error:
+            print(f"Last error: {last_error}", file=sys.stderr)
+        print("Run: databricks service-principal-secrets-proxy create", sp_id, "-p", profile, "-o json", file=sys.stderr)
         print("Create a secret in the workspace UI (Service Principal → Secrets) or run:", file=sys.stderr)
         print("  databricks service-principal-secrets-proxy create", sp_id, "-p", profile, file=sys.stderr)
         print("Then add client_secret to config.json and re-run this script to add the SP to Postgres.", file=sys.stderr)
@@ -121,7 +137,7 @@ def main():
 
     # 4) Add service principal to Postgres (create role so OAuth can be used)
     mode = lakebase.get("mode", "provisioned")
-    schema_db = lakebase.get("schema") or "databricks_postgres"
+    database_name = lakebase.get("database") or "databricks_postgres"
 
     try:
         import psycopg2
@@ -158,7 +174,7 @@ def main():
         conn = psycopg2.connect(
             host=host_pg,
             port=5432,
-            dbname=schema_db,
+            dbname=database_name,
             user=user_email,
             password=token,
             sslmode="require",
@@ -193,7 +209,7 @@ def main():
         conn = psycopg2.connect(
             host=host_pg,
             port=5432,
-            dbname=schema_db,
+            dbname=database_name,
             user=user_email,
             password=token,
             sslmode="require",
@@ -202,19 +218,18 @@ def main():
     # Create role for service principal (OAuth user = client_id) and grant access
     role_name = str(client_id)
     with conn.cursor() as cur:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS databricks_auth;")
         cur.execute('SELECT 1 FROM pg_roles WHERE rolname = %s', (role_name,))
         if cur.fetchone():
             print(f"Postgres role {role_name!r} already exists.")
         else:
-            cur.execute(f'CREATE ROLE "{role_name}" LOGIN')
+            cur.execute(f"SELECT databricks_create_role('{role_name}', 'SERVICE_PRINCIPAL')")
             print(f"Created Postgres role {role_name!r}.")
-        cur.execute(f'GRANT CONNECT ON DATABASE "{schema_db}" TO "{role_name}"')
-        cur.execute(f'GRANT USAGE ON SCHEMA public TO "{role_name}"')
-        cur.execute(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{role_name}"')
-        cur.execute("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO \"" + role_name + "\"")
+        cur.execute(f'GRANT ALL PRIVILEGES ON DATABASE "{database_name}" TO "{role_name}"')
+        cur.execute(f'GRANT USAGE, CREATE ON SCHEMA public TO "{role_name}"')
         conn.commit()
     conn.close()
-    print("Service principal granted OAuth access to Lakebase Postgres.")
+    print(f"Service principal {client_id!r} granted OAuth access to Lakebase Postgres database {database_name!r}.")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
   "lakebase": {
     "mode": "provisioned",
     "instance_names": ["my-instance"],
-    "schema": "databricks_postgres",
+    "database": "databricks_postgres",
     "user": "<service_principal_or_user>"
   }
 }

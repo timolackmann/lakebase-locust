@@ -18,7 +18,7 @@ class MyUser(LakebaseUser):
         super().on_start()
         self.inserted_id = []
         self.run_sql("""
-            CREATE TABLE IF NOT EXISTS test_table2 (
+            CREATE TABLE IF NOT EXISTS test_table (
                 inserted_id INTEGER PRIMARY KEY,
                 name VARCHAR(255)
             )
@@ -30,7 +30,7 @@ class MyUser(LakebaseUser):
         # Use a unique id across workers to avoid UniqueViolation with multiple Locust workers
         row_id = uuid.uuid4().int % (2**31 - 1) or 1
         name = self.faker.name()
-        sql = "INSERT INTO test_table2(inserted_id, name) VALUES (%s, %s)"
+        sql = "INSERT INTO test_table(inserted_id, name) VALUES (%s, %s)"
         self.run_sql(sql, [row_id, name], commit=True)
         self.inserted_id.append(row_id)
         print(f"inserted id {row_id} name={name}")
@@ -42,7 +42,7 @@ class MyUser(LakebaseUser):
         idx = random.randint(0, len(self.inserted_id) - 1)
         row_id = self.inserted_id[idx]
         new_name = self.faker.name()
-        sql = "UPDATE test_table2 SET name=%s WHERE inserted_id=%s"
+        sql = "UPDATE test_table SET name=%s WHERE inserted_id=%s"
         self.run_sql(sql, (new_name, row_id), commit=True)
         print(f"updated id {row_id} name={new_name}")
 
@@ -52,7 +52,7 @@ class MyUser(LakebaseUser):
             return
         to_be_removed = random.randint(0, len(self.inserted_id) - 1)
         removed_id = self.inserted_id[to_be_removed]
-        sql = "DELETE FROM test_table2 WHERE inserted_id=%s"
+        sql = "DELETE FROM test_table WHERE inserted_id=%s"
         self.run_sql(sql, (removed_id,), commit=True)
         self.inserted_id.pop(to_be_removed)
         print(f"deleted id {removed_id}")

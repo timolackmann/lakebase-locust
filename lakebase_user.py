@@ -21,7 +21,7 @@ import psycopg2
 from databricks.sdk import WorkspaceClient
 from locust import User, task
 
-DEFAULT_SCHEMA = "databricks_postgres"
+DEFAULT_DATABASE = "databricks_postgres"
 
 
 def load_config():
@@ -97,7 +97,7 @@ class LakebaseUser(User):
         instance_names = lakebase.get("instance_names") or []
         if not instance_names:
             raise ValueError("lakebase.instance_names must be a non-empty list for mode=provisioned")
-        schema = lakebase.get("schema") or DEFAULT_SCHEMA
+        database = lakebase.get("database") or DEFAULT_DATABASE
         instance = self._workspace.database.get_database_instance(name=instance_names[0])
         cred = self._workspace.database.generate_database_credential(
             request_id=str(uuid.uuid4()),
@@ -105,7 +105,7 @@ class LakebaseUser(User):
         )
         self.conn = psycopg2.connect(
             host=instance.read_write_dns,
-            dbname=schema,
+            dbname=database,
             user=lakebase["user"],
             password=cred.token,
             sslmode="require",
@@ -129,10 +129,10 @@ class LakebaseUser(User):
         if not host:
             raise ValueError(f"Endpoint {endpoint_name} has no host; endpoint may not be ready")
         cred = self._workspace.postgres.generate_database_credential(endpoint=endpoint_name)
-        schema = lakebase.get("schema") or DEFAULT_SCHEMA
+        database = lakebase.get("database") or DEFAULT_DATABASE
         self.conn = psycopg2.connect(
             host=host,
-            dbname=schema,
+            dbname=database,
             user=lakebase["user"],
             password=cred.token,
             sslmode="require",
