@@ -1,0 +1,15 @@
+{
+  "workspace": {
+    "host": "https://<workspace>.cloud.databricks.com",
+    "client_id": "<client_id>",
+    "client_secret": "<client_secret>"
+  },
+  "lakebase": {
+    "mode": "autoscale",
+    "project_id": "<project_id>",
+    "branch_id": "<branch_id>",
+    "endpoint_id": "<endpoint_id>",
+    "schema": "databricks_postgres",
+    "user": "<service_principal_or_user>"
+  }
+}

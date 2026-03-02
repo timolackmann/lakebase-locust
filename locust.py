@@ -1,61 +1,58 @@
-from locust import between, task
+from locust import between
 import random
+import uuid
 
-from lakebase_user import LakebaseUser
+from faker import Faker
+
+from lakebase_user import LakebaseUser, lakebase_task
 
 
 class MyUser(LakebaseUser):
 
     def __init__(self, environment):
         super().__init__(environment)
-        self.latest_id = 1
-        self.inserted_id = []
+        self.faker = Faker()
+        self.inserted_id = []  # list of inserted_id values (unique across workers)
 
     def on_start(self):
         super().on_start()
-        self.latest_id = 1
         self.inserted_id = []
-
-        command = """
-            CREATE TABLE test_table2 (
+        self.run_sql("""
+            CREATE TABLE IF NOT EXISTS test_table2 (
                 inserted_id INTEGER PRIMARY KEY,
                 name VARCHAR(255)
             )
-            """
-
-        def create_table(cur):
-            cur.execute(command)
-
-        self.execute_timed("create_table", lambda: self._run_with_cursor(create_table))
+        """)
         print("created table")
 
-    def _run_with_cursor(self, operation):
-        with self.conn.cursor() as cur:
-            operation(cur)
-
-    @task()
+    @lakebase_task()
     def insert_record(self):
-        command = "INSERT INTO test_table2(inserted_id) VALUES (%s)"
+        # Use a unique id across workers to avoid UniqueViolation with multiple Locust workers
+        row_id = uuid.uuid4().int % (2**31 - 1) or 1
+        name = self.faker.name()
+        sql = "INSERT INTO test_table2(inserted_id, name) VALUES (%s, %s)"
+        self.run_sql(sql, [row_id, name], commit=True)
+        self.inserted_id.append(row_id)
+        print(f"inserted id {row_id} name={name}")
 
-        def do_insert(cur):
-            cur.execute(command, [self.latest_id])
+    @lakebase_task()
+    def update_record(self):
+        if not self.inserted_id:
+            return
+        idx = random.randint(0, len(self.inserted_id) - 1)
+        row_id = self.inserted_id[idx]
+        new_name = self.faker.name()
+        sql = "UPDATE test_table2 SET name=%s WHERE inserted_id=%s"
+        self.run_sql(sql, (new_name, row_id), commit=True)
+        print(f"updated id {row_id} name={new_name}")
 
-        self.execute_timed("insert_record", lambda: self._run_with_cursor(do_insert), commit=True)
-        self.inserted_id.append(self.latest_id)
-        self.latest_id += 1
-        print(f"inserted id {self.latest_id}")
-
-    @task()
+    @lakebase_task()
     def delete_record(self):
         if not self.inserted_id:
             return
         to_be_removed = random.randint(0, len(self.inserted_id) - 1)
-        command = "DELETE FROM test_table2 WHERE inserted_id=%s;"
         removed_id = self.inserted_id[to_be_removed]
-
-        def do_delete(cur):
-            cur.execute(command, (removed_id,))
-
-        self.execute_timed("delete_record", lambda: self._run_with_cursor(do_delete), commit=True)
+        sql = "DELETE FROM test_table2 WHERE inserted_id=%s"
+        self.run_sql(sql, (removed_id,), commit=True)
         self.inserted_id.pop(to_be_removed)
         print(f"deleted id {removed_id}")

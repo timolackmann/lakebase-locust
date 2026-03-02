@@ -20,5 +20,8 @@ build/
 .cursor/
 .DS_Store
 
+# Config with secrets (copy config.example.json to config.json and fill in values)
+config.json
+test.py
 # Locust
 *.log

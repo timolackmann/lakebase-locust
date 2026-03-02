@@ -1,0 +1,13 @@
+{
+  "workspace": {
+    "host": "https://<workspace>.cloud.databricks.com",
+    "client_id": "<client_id>",
+    "client_secret": "<client_secret>"
+  },
+  "lakebase": {
+    "mode": "provisioned",
+    "instance_names": ["my-instance"],
+    "schema": "databricks_postgres",
+    "user": "<service_principal_or_user>"
+  }
+}
