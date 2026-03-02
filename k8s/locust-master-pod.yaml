@@ -1,0 +1,40 @@
+# Locust master Pod. Replace YOUR_GCP_PROJECT with your GCP project ID (or set the image to the one you pushed).
+#
+# Before applying, create both ConfigMaps from your repo root (shared by master and worker):
+#   kubectl create configmap locust-script --from-file=locust.py=./locust.py
+#   kubectl create configmap locust-config --from-file=config.json=./config.json
+#
+# Then: kubectl apply -f k8s/locust-master-pod.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: locust-master
+  labels:
+    app: locust
+    role: master
+spec:
+  containers:
+    - name: locust
+      image: europe-central2-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase:latest
+      imagePullPolicy: Always
+      env:
+        - name: LOCUST_OPTIONS
+          value: "--master"
+        - name: CONFIG_PATH
+          value: "/mnt/locust-config/config.json"
+      ports:
+        - containerPort: 8089
+      volumeMounts:
+        - name: locust-script
+          mountPath: /mnt/locust
+        - name: locust-config
+          mountPath: /mnt/locust-config
+          readOnly: true
+  volumes:
+    - name: locust-script
+      configMap:
+        name: locust-script
+    - name: locust-config
+      configMap:
+        name: locust-config

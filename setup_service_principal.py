@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 
 """
-WORK IN PROGRESS
-
-This script is not yet working.
-"""
-"""
 Setup script for Locust + Lakebase: creates a Databricks service principal,
 adds client_id and client_secret to config.json, and grants the service principal
 OAuth access to the Lakebase Postgres instance.

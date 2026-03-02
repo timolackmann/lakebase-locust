@@ -192,9 +192,38 @@ Then open the web UI (default http://localhost:8089), set number of users and sp
 
 ---
 
-## Summary
+## Running on Kubernetes (GCP)
 
-| What you need | What to do |
-|---------------|------------|
-| **Right config** | Use `config.provisioned.example.json` or `config.autoscale.example.json` as template → save as `config.json` (or set `CONFIG_PATH`). Set `lakebase.mode` and the required fields for that mode. |
-| **Lakebase tasks in `locust.py`** | Subclass `LakebaseUser`, call `super().on_start()` in `on_start`, use `@lakebase_task()` or `@lakebase_task(weight=N)` on task methods, and run all SQL via `self.run_sql(...)`. |
+You can run the Locust load tester on a Kubernetes cluster on Google Cloud Platform (GCP). The **`k8s/`** folder contains the manifests and scripts for building the image and deploying master and worker pods.
+
+### Prerequisites
+
+- **kubectl** — Install the [Kubernetes CLI](https://kubernetes.io/docs/tasks/tools/) and configure it for your GCP cluster (e.g. `gcloud container cluster get-credentials <cluster> --zone <zone> --project <project>`).
+- **Google Cloud CLI (gcloud)** — Install the [gcloud CLI](https://cloud.google.com/sdk/docs/install) and authenticate (e.g. `gcloud auth login`). You need it to push the container image to Artifact Registry and to get cluster credentials.
+
+### 1. Build and push the base image (do this first)
+
+The container image must be built and pushed to GCP Artifact Registry before deploying. The **`k8s/`** folder has the details:
+
+- See **`k8s/README.md`** for how to build the image and push it to GCP (e.g. using **`./k8s/build-and-push.sh`**).
+- Ensure the Artifact Registry repository exists and Docker is configured for it (see the comments in `k8s/build-and-push.sh`).
+
+### 2. Deploy or refresh the deployment
+
+After the image is available in your registry, use **`refresh-deployment.sh`** from the repository root to (re)create the Locust ConfigMaps, master pod, master service, and worker deployment from the current `locust.py` and `config.json`:
+
+```bash
+./refresh-deployment.sh
+```
+
+This script requires `kubectl` to be configured for your cluster. It deletes existing Locust resources (if any) and recreates them from the manifests in `k8s/`.
+
+### 3. Databricks workspace IP access list
+
+If your Databricks workspace uses an IP access list (allow list), the cluster's outbound IPs must be allowed. Use **`k8s-cluster-ip-access.sh`** to collect your Kubernetes cluster's node external IPs and create a new IP access list in Databricks:
+
+```bash
+./k8s-cluster-ip-access.sh
+```
+
+Optional: `-p, --profile PROFILE` for the Databricks CLI profile; `-l, --label LABEL` for the access list label (default: `k8s-cluster-egress`). Prerequisites: `kubectl` configured for your cluster and Databricks CLI installed and authenticated (e.g. `databricks auth login`).

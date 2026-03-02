@@ -1,0 +1,47 @@
+# Locust worker Deployment. Uses the same ConfigMaps as the master (locust-script, locust-config).
+# Ensure the master Pod and Service (name: master) are running so workers can connect.
+#
+# Apply after creating ConfigMaps and the master:
+#   kubectl apply -f k8s/locust-worker-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust-worker
+  labels:
+    app: locust
+    role: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: locust
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: locust
+        role: worker
+    spec:
+      containers:
+        - name: locust
+          image: europe-central2-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase:latest
+          imagePullPolicy: Always
+          env:
+            - name: LOCUST_OPTIONS
+              value: "--worker --master-host master"
+            - name: CONFIG_PATH
+              value: "/mnt/locust-config/config.json"
+          volumeMounts:
+            - name: locust-script
+              mountPath: /mnt/locust
+            - name: locust-config
+              mountPath: /mnt/locust-config
+              readOnly: true
+      volumes:
+        - name: locust-script
+          configMap:
+            name: locust-script
+        - name: locust-config
+          configMap:
+            name: locust-config

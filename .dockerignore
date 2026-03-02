@@ -1,0 +1,26 @@
+# Git and IDE
+.git
+.gitignore
+.idea
+.vscode
+.cursor
+
+# Python
+venv
+.venv
+env
+__pycache__
+*.pyc
+*.egg-info
+.eggs
+dist
+build
+
+# Config with secrets (mount at runtime)
+config.json
+
+# Misc
+*.log
+.DS_Store
+k8s/*.yml
+k8s/README.md
