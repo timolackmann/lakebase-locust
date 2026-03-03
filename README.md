@@ -25,7 +25,7 @@ cp config.provisioned.example.json config.json   # or config.autoscale.example.j
 
 **Required in `config.json`:**
 
-- **workspace:** `host`, `client_id` (if available, else see [Service principal setup] (#sp-setup)), `client_secret` (if available, else see [Service principal setup] (#sp-setup))
+- **workspace:** `host`, `client_id` (if available, else see [Service principal setup](#sp-setup)), `client_secret` (if available, else see [Service principal setup](#sp-setup))
 - **provisioned:** `lakebase.mode: "provisioned"`, `lakebase.instance_names` (non-empty list), `lakebase.database`, `lakebase.user` (usually same as `client_id`)
 - **autoscale:** `lakebase.mode: "autoscale"`, `lakebase.project_id`, `lakebase.branch_id`, `lakebase.endpoint_id`, `lakebase.database`, `lakebase.user` (usually same as `client_id`)
 
