@@ -33,7 +33,7 @@ cp config.provisioned.example.json config.json   # or config.autoscale.example.j
 
 ---
 
-##<a name="sp-setup"></a> Optional: Service principal setup
+## <a name="sp-setup"></a> Optional: Service principal setup
 
 **`setup_service_principal.py`** creates a Databricks service principal, writes `client_id`/`client_secret` into config, and grants it OAuth access to Lakebase.
 
