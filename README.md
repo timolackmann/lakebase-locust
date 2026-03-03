@@ -1,167 +1,62 @@
 # Locust Load Tester for Databricks Lakebase
 
-Load test Databricks Lakebase (PostgreSQL) using [Locust](https://locust.io/). This project provides a `LakebaseUser` base class and `@lakebase_task` decorator so you can define SQL workloads and run them as Locust tasks with timing and request logging.
+Load test Databricks Lakebase (PostgreSQL) with [Locust](https://locust.io/). Uses a `LakebaseUser` base class and `@lakebase_task` decorator to define SQL workloads as Locust tasks with timing and request logging.
 
 ## Prerequisites
 
-- Python 3 with a virtual environment (e.g. `python -m venv venv && source venv/bin/activate`)
-- Dependencies: `locust`, `psycopg2-binary`, `databricks-sdk`, `faker` (see your project’s requirements or install manually)
+- Python 3 + venv (e.g. `python -m venv venv && source venv/bin/activate`)
+- Dependencies: `locust`, `psycopg2-binary`, `databricks-sdk`, `faker` (see `requirements.txt` or install manually)
 
-## Config file: which one to use
+---
 
-Config is read from **`config.json`** by default, or from the path in the **`CONFIG_PATH`** environment variable.
+## Configuration
 
-There are two modes, each with its own example config:
+Config is read from **`config.json`** (or **`CONFIG_PATH`**). Use one of the example configs:
 
-| Mode           | When to use it                         | Example config                     |
-|----------------|----------------------------------------|------------------------------------|
-| **provisioned** | You have a provisioned Lakebase instance (instance name(s)) | `config.provisioned.example.json` |
-| **autoscale**   | You use Lakebase Autoscale (project/branch/endpoint)        | `config.autoscale.example.json`   |
+| Mode | When to use | Example |
+|------|--------------|---------|
+| **provisioned** | You have a provisioned Lakebase instance | `config.provisioned.example.json` |
+| **autoscale** | You use Lakebase Autoscale | `config.autoscale.example.json` |
 
-### 1. Provisioned Lakebase
+```bash
+cp config.provisioned.example.json config.json   # or config.autoscale.example.json
+# Edit config.json with your values
+```
 
-- Copy the provisioned example and fill in your values:
+**Required in `config.json`:**
 
-  ```bash
-  cp config.provisioned.example.json config.json
-  ```
+- **workspace:** `host`, `client_id` (if available, else see [Service principal setup] (#sp-setup)), `client_secret` (if available, else see [Service principal setup] (#sp-setup))
+- **provisioned:** `lakebase.mode: "provisioned"`, `lakebase.instance_names` (non-empty list), `lakebase.database`, `lakebase.user` (usually same as `client_id`)
+- **autoscale:** `lakebase.mode: "autoscale"`, `lakebase.project_id`, `lakebase.branch_id`, `lakebase.endpoint_id`, `lakebase.database`, `lakebase.user` (usually same as `client_id`)
 
-- Edit `config.json`:
-  - **workspace**: `host`, `client_id`, `client_secret` (Databricks workspace OAuth app)
-  - **lakebase**: `mode: "provisioned"`, `instance_names` (list of instance names), `database`, `user`
+`config.json` is typically gitignored; never commit real credentials.
 
-- Required: `lakebase.instance_names` must be a non-empty list. The code uses the first instance and `workspace.database` APIs to get connection details and credentials.
+---
 
-### 2. Lakebase Autoscale
+##<a name="sp-setup"></a> Optional: Service principal setup
 
-- Copy the autoscale example and fill in your values:
+**`setup_service_principal.py`** creates a Databricks service principal, writes `client_id`/`client_secret` into config, and grants it OAuth access to Lakebase.
 
-  ```bash
-  cp config.autoscale.example.json config.json
-  ```
+**Required in config:** `workspace.host`, `lakebase` section with `mode` and (for autoscale) `project_id`, `branch_id`, `endpoint_id`, or (for provisioned) `instance_names`. Optional: `lakebase.database` (default `databricks_postgres`).
 
-- Edit `config.json`:
-  - **workspace**: same as above
-  - **lakebase**: `mode: "autoscale"`, `project_id`, `branch_id`, `endpoint_id`, `database`, `user`
-
-- Required: `project_id`, `branch_id`, and `endpoint_id`. The code uses `workspace.postgres` APIs to resolve the endpoint and generate credentials.
-
-### Optional: Create a service principal with `setup_service_principal.py`
-
-Before running Locust, you can optionally use **`setup_service_principal.py`** to create a Databricks service principal, write its `client_id` and `client_secret` into your config, and grant that service principal OAuth access to the Lakebase Postgres instance. This is useful if you do not yet have a service principal and want the script to create one and configure it for you.
-
-**What the script does:**
-
-- Creates a service principal in your Databricks workspace
-- Generates a secret for the service principal
-- Writes `workspace.client_id`, `workspace.client_secret`, and `lakebase.user` into your config file
-- Grants the service principal OAuth access to the Lakebase Postgres database (creates the role and grants privileges)
-
-**Required parameters in `config.json` to run the script:**
-
-| Parameter | Required | Notes |
-|-----------|----------|--------|
-| `workspace.host` | Yes | Your Databricks workspace URL (e.g. `https://….cloud.databricks.com`). The script does not need `client_id` or `client_secret` in config beforehand; it will add them. |
-| `lakebase` | Yes | Must contain the Lakebase section. |
-| `lakebase.mode` | Yes | Either `"provisioned"` or `"autoscale"`. |
-| **If mode is `"autoscale"`** | | |
-| `lakebase.project_id` | Yes | Lakebase project ID. |
-| `lakebase.branch_id` | Yes | Branch ID. |
-| `lakebase.endpoint_id` | Yes | Endpoint ID (e.g. `"primary"`). |
-| **If mode is `"provisioned"`** | | |
-| `lakebase.instance_names` | Yes | Non-empty list of instance names. |
-
-Optional: `lakebase.database` (defaults to `databricks_postgres` if omitted).
-
-**Prerequisites:** Databricks CLI installed and authenticated to the same workspace (e.g. `databricks auth login` or a configured profile). The script uses the workspace-level CLI only.
-
-**Usage:**
+**Prerequisites:** Databricks CLI installed and authenticated (`databricks auth login`).
 
 ```bash
 python setup_service_principal.py [--profile PROFILE] [--display-name NAME] [--config PATH]
 ```
 
-- `--profile`: Databricks CLI profile (default: `DEFAULT` or `DATABRICKS_CLI_PROFILE`).
-- `--display-name`: Display name for the new service principal (default: `locust-lakebase-sp`).
-- `--config`: Path to config file (default: `config.json` or `CONFIG_PATH`).
-
-After the script runs successfully, your config will contain the new `client_id` and `client_secret`, and you can run Locust as described in **Running Locust**.
-
-### Using a different config path
-
-Set `CONFIG_PATH` to the path of your config file:
-
-```bash
-export CONFIG_PATH=/path/to/my_config.json
-locust -f locust.py --host=localhost
-```
-
-**Note:** `config.json` is typically gitignored because it contains secrets. Use the example configs as templates and never commit real credentials.
-
 ---
 
-## Using `lakebase_task` in your Locust file
+## Using `LakebaseUser` and `@lakebase_task`
 
-Your load-test behaviour lives in a user class that subclasses **`LakebaseUser`** and uses **`@lakebase_task`** for each task.
-
-### 1. Subclass `LakebaseUser`
-
-Use `LakebaseUser` instead of `HttpUser` so each simulated user gets its own Lakebase connection and `run_sql()`:
+1. **Subclass `LakebaseUser`** and call **`super().on_start()`** in `on_start` so the connection is created from config.
+2. **Mark tasks with `@lakebase_task()`** or **`@lakebase_task(weight=N)`** instead of `@task`.
+3. **Run SQL with `self.run_sql(sql)`**, `self.run_sql(sql, [params])`, or `self.run_sql(sql, params, commit=True)`.
 
 ```python
 from lakebase_user import LakebaseUser, lakebase_task
 
 class MyUser(LakebaseUser):
-    ...
-```
-
-### 2. Call `super().on_start()` to connect
-
-In `on_start`, call the base implementation so the connection is created from your config (provisioned or autoscale):
-
-```python
-def on_start(self):
-    super().on_start()  # establishes self.conn from config
-    # optional: create tables, prepare state, etc.
-```
-
-### 3. Mark tasks with `@lakebase_task`
-
-Use **`@lakebase_task()`** (or **`@lakebase_task(weight=N)`**) instead of Locust’s `@task` so that:
-
-- The method is registered as a Locust task
-- Response time and success/failure are reported to Locust
-
-```python
-@lakebase_task()
-def insert_record(self):
-    self.run_sql("INSERT INTO ... VALUES (%s, %s)", [a, b], commit=True)
-
-@lakebase_task(weight=2)  # this task runs twice as often as weight=1
-def read_record(self):
-    self.run_sql("SELECT ...")
-```
-
-- **No arguments**: `@lakebase_task()` — same as weight 1.
-- **Weight**: `@lakebase_task(weight=N)` — relative probability of picking this task.
-
-### 4. Run SQL inside tasks with `run_sql`
-
-Inside a `@lakebase_task` method, use **`self.run_sql()`** for all database work:
-
-- `self.run_sql(sql)` — no parameters
-- `self.run_sql(sql, [a, b])` or `self.run_sql(sql, (a, b))` — parameterized query
-- `self.run_sql(sql, params, commit=True)` — execute and commit
-
-Use parameterized queries to avoid SQL injection. Each call uses a dedicated cursor on that user’s connection; connections are not shared between users or workers.
-
-### Minimal example
-
-```python
-from lakebase_user import LakebaseUser, lakebase_task
-
-class MyUser(LakebaseUser):
-
     def on_start(self):
         super().on_start()
         self.run_sql("CREATE TABLE IF NOT EXISTS demo (id INT, name TEXT)")
@@ -179,51 +74,24 @@ class MyUser(LakebaseUser):
 
 ## Running Locust
 
-- **Config:** Ensure `config.json` (or `CONFIG_PATH`) is set for the mode you use (provisioned or autoscale).
-- **User class:** Point Locust at your file and user class (default class name is often inferred; specify with `-u` if needed).
-
-Example:
+Ensure `config.json` (or `CONFIG_PATH`) is set. From the repo root:
 
 ```bash
 locust -f locust.py
 ```
 
-Then open the web UI (default http://localhost:8089), set number of users and spawn rate, and start the test. Tasks decorated with `@lakebase_task` will appear in Locust’s stats with response times and success/failure.
+Open http://localhost:8089, set users and spawn rate, and start the test.
 
 ---
 
 ## Running on Kubernetes (GCP)
 
-You can run the Locust load tester on a Kubernetes cluster on Google Cloud Platform (GCP). The **`k8s/`** folder contains the manifests and scripts for building the image and deploying master and worker pods.
-
-### Prerequisites
-
-- **kubectl** — Install the [Kubernetes CLI](https://kubernetes.io/docs/tasks/tools/) and configure it for your GCP cluster (e.g. `gcloud container cluster get-credentials <cluster> --zone <zone> --project <project>`).
-- **Google Cloud CLI (gcloud)** — Install the [gcloud CLI](https://cloud.google.com/sdk/docs/install) and authenticate (e.g. `gcloud auth login`). You need it to push the container image to Artifact Registry and to get cluster credentials.
-
-### 1. Build and push the base image (do this first)
-
-The container image must be built and pushed to GCP Artifact Registry before deploying. The **`k8s/`** folder has the details:
-
-- See **`k8s/README.md`** for how to build the image and push it to GCP (e.g. using **`./k8s/build-and-push.sh`**).
-- Ensure the Artifact Registry repository exists and Docker is configured for it (see the comments in `k8s/build-and-push.sh`).
-
-### 2. Deploy or refresh the deployment
-
-After the image is available in your registry, use **`refresh-deployment.sh`** from the repository root to (re)create the Locust ConfigMaps, master pod, master service, and worker deployment from the current `locust.py` and `config.json`:
+1. **Follow the instructions in the `k8s/` folder** (build and push image, create Artifact Registry repo, update image in manifests).
+2. **Run the refresh script** from the repository root to (re)create ConfigMaps, master pod, service, and workers from the current `locust.py` and `config.json`:
 
 ```bash
 ./refresh-deployment.sh
 ```
 
-This script requires `kubectl` to be configured for your cluster. It deletes existing Locust resources (if any) and recreates them from the manifests in `k8s/`.
+Requires `kubectl` configured for your cluster. For the Locust web UI, port-forward: `kubectl port-forward service/master 8089:8089` then open http://localhost:8089.
 
-### 3. Databricks workspace IP access list
-
-If your Databricks workspace uses an IP access list (allow list), the cluster's outbound IPs must be allowed. Use **`k8s-cluster-ip-access.sh`** to collect your Kubernetes cluster's node external IPs and create a new IP access list in Databricks:
-
-```bash
-./k8s-cluster-ip-access.sh
-```
-
-Optional: `-p, --profile PROFILE` for the Databricks CLI profile; `-l, --label LABEL` for the access list label (default: `k8s-cluster-egress`). Prerequisites: `kubectl` configured for your cluster and Databricks CLI installed and authenticated (e.g. `databricks auth login`).

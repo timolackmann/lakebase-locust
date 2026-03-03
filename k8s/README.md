@@ -47,3 +47,14 @@ Applying the manifests in this folder creates three resources:
   ```bash
   kubectl scale deployment locust-worker --replicas 20
   ```
+
+## Databricks IP access list
+
+If your Databricks workspace uses an IP allow list, the cluster’s outbound IPs must be allowed. Use **`k8s-cluster-ip-access.sh`** (from this folder or the repo root) to collect your Kubernetes cluster’s node external IPs and create a new IP access list in Databricks:
+
+```bash
+./k8s-cluster-ip-access.sh
+```
+
+- **Optional:** `-p, --profile PROFILE` for the Databricks CLI profile; `-l, --label LABEL` for the access list label (default: `k8s-cluster-egress`).
+- **Prerequisites:** `kubectl` configured for your cluster and Databricks CLI installed and authenticated (e.g. `databricks auth login`).
