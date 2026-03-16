@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /mnt/locust
 
 # Dependencies and shared Lakebase user (mounted locust.py imports this)
-COPY k8s/requirements.txt /tmp/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 COPY lakebase_user.py /app/lakebase_user.py
 
