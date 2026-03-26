@@ -1,54 +1,87 @@
 #####################
 # AWS Configuration #
-##################### 
-#AWS region which will be used for deploying Locust on AWS EC2. Use one of the following codes: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html
-region = "eu-central-1"
-awsProfile = "default" #aws cli profile https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html
+#####################
 
-# VPC and subnet needs to be available before running terraform
-awsVpcId                  = "<VPC Id>"
-awsSubnetId               = "<Subnet Id>"
+# AWS region for EC2 and related resources. Codes: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html
+region = "<aws-region>"
 
-# keyName refers to the ssh key file which must be present in the selected AWS region
-keyName = "SSHKey" 
+# AWS CLI named profile for Terraform/provider authentication. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html
+awsProfile = "<aws-cli-profile-name>"
 
-# Must contain the absoult path in order to be usable for an ssh connection
-keyPath = "/Users/<username>/Downloads/SSHKey.pem"
+# Existing VPC ID where Locust nodes and networking will run (must exist before apply).
+awsVpcId = "<vpc-xxxxxxxx>"
 
-# Your IP in CIDR (e.g. 1.2.3.4/32) for SSH and Locust web UI access. Find with: curl -s ifconfig.me
-allowedIngressCidr = "<your-ip>/32"
+# Subnet ID in that VPC for Locust and private endpoint (must exist before apply).
+awsSubnetId = "<subnet-xxxxxxxx>"
+
+# EC2 key pair name registered in this region (matches the key you use for SSH).
+keyName = "<ec2-key-pair-name>"
+
+# Absolute filesystem path to the private key file (.pem) for SSH to instances.
+keyPath = "<absolute-path-to-key.pem>"
+
+# Source CIDR allowed for SSH and Locust web UI (port 8089); use your public IP as x.x.x.x/32.
+allowedIngressCidr = "<your-public-ip>/32"
 
 ########################
 # Locust Configuration #
 ########################
-# Instances for the Lokust deployment and the networking for the private endpoint
-locustMasterInstanceType = "m5.large"
-locustWorkerInstanceType  = "m5.2xlarge"
-workernodeCount           = 1
-workersPerNode            = 8 #recommended to be the same number as vCPUs of the instance
 
-# Provide Locust related files to be copied to master and workers. Does not need to be provided if using the default files
-#locustFiles = ["locust.py", "lakebase_user.py", "config.json"]
-# Provide Locust file for execution. Must be included in 'locustFiles'. Does not need to be provided if using the default files
-#locustExecuteFile = "locust.py"
+# EC2 instance type for the Locust master node (must be a valid type in your region).
+locustMasterInstanceType = "<instance-type>"
 
-# Provide Connection String when testing for an existing MongoDB Cluster
-# In this case, terraform will not create an Atlas Cluster and AWS PrivateLink
-connectionString = ""
+# EC2 instance type for each Locust worker node (must be a valid type in your region).
+locustWorkerInstanceType = "<instance-type>"
+
+# Number of worker EC2 instances to deploy.
+workernodeCount = 1 # replace with your desired worker node count
+
+# Locust users spawned per worker process; typically align with vCPUs of the worker instance type.
+workersPerNode = 8 # replace with your desired users per node
+
+# List of Locust-related files copied to master and workers (paths as required by your layout).
+locustFiles = ["<locust.py>", "<lakebase_user.py>", "<config.json>"]
+
+# Optional: Locust file to run; must be listed in locustFiles. Omit to use module default (locust.py).
+# locustExecuteFile = "<locust.py>"
+
+#############################
+# Databricks Configuration  #
+#############################
+
+# Databricks CLI profile (output of `databricks configure --profile <name>`).
+databricksProfile = "<databricks-cli-profile>"
+
+# If true, Terraform creates/updates an IP access list for Locust egress IPs (use a plan-time-safe value).
+enable_ip_access_list = false # set true or false as needed
+
+# Label for the Databricks IP access list entry.
+databricks_ip_access_list_label = "<ip-access-list-label>"
+
+# Display name for the service principal Terraform creates for Locust/Lakebase integration.
+databricks_service_principal_display_name = "<service-principal-display-name>"
 
 ###############################
-# Atlas Cluster Configuration #
+# Lakebase Configuration      #
 ###############################
 
-# API keys must be whitelisted for your laptops IP address
-# Region of Atlas deployment. Currently only AWS is supported. Use one of the following codes: https://docs.atlas.mongodb.com/reference/amazon-aws/#std-label-amazon-aws
-atlasRegion            = "EU_CENTRAL_1"
-atlasPublicApiKey      = "<PublicAPIKey>"
-atlasPrivateApiKey     = "<PrivateAPIKey>"
-atlasProjectId         = "<ProjectId>"
-atlasNumShards         = 1 #currently only 1 shard supported
-atlasmajorVersion      = "5.0"
-atlasMSize             = "M30"
-retryableWritesEnabled = true
-writeConcern           = "majority"
-diskSizeGb             = 20
+# Human-readable Lakebase project name in Databricks.
+lakebaseProjectName = "<lakebase-project-display-name>"
+
+# Lakebase project identifier (slug/id used by APIs/UI).
+LakebaseProjectId = "<lakebase-project-id>"
+
+# PostgreSQL major version for the Lakebase instance.
+lakebasePgVersion = 17 # replace if your project uses another major version
+
+# Minimum compute units for the Lakebase endpoint.
+lakebaseEndpoint_min_cu = 0.5 # replace with your minimum CU
+
+# Maximum compute units for the Lakebase endpoint.
+lakebaseEndpoint_max_cu = 4 # replace with your maximum CU
+
+# Idle suspend timeout for the endpoint (duration string, e.g. 300s).
+lakebaseSuspendTimeout = "<e.g. 300s>"
+
+# If true, run grant logic so the created service principal can access Lakebase Postgres.
+run_grant_sp_to_lakebase = false # set true or false as needed
