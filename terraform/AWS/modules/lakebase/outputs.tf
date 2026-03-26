@@ -15,3 +15,13 @@ output "project_status" {
   value       = try(databricks_postgres_project.this.status, null)
   sensitive   = true
 }
+
+output "uid" {
+  description = "Lakebase project UID"
+  value       = databricks_postgres_project.this.uid
+}
+
+output "branch_id" {
+  description = "Lakebase branch ID"
+  value       = databricks_postgres_branch.load_test_branch.branch_id
+}

@@ -25,3 +25,10 @@ config.json
 test.py
 # Locust
 *.log
+
+# Terraform state and local cache
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform/AWS/.terraform.lock.hcl
+terraform/AWS/terraform.tfvars

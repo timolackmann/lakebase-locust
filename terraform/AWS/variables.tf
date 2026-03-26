@@ -144,3 +144,9 @@ variable "lakebase_database" {
   description = "Lakebase Postgres database name used when granting the service principal (default: databricks_postgres)."
   default     = "databricks_postgres"
 }
+
+variable "enable_ip_access_list" {
+  type        = bool
+  description = "Whether to create the IP access list for Locust IPs. Use a plan-time known value so count does not depend on resource attributes (e.g. from module.locust)."
+  default     = false
+}

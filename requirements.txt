@@ -1,6 +1,6 @@
 # Locust and Lakebase load-tester dependencies
-# Used by k8s/Dockerfile to build the base image
 locust
 psycopg2-binary
+psycogreen
 databricks-sdk
 faker

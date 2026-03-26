@@ -30,3 +30,11 @@ resource "databricks_postgres_project" "this" {
     }
   }
 }
+
+resource "databricks_postgres_branch" "load_test_branch" {
+  branch_id = "br-load-testing"
+  parent    = databricks_postgres_project.this.name
+  spec = {
+    no_expiry = true
+  }
+}

@@ -11,9 +11,21 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /mnt/locust
 
+# Pip inside the build does not read the host's pip.conf; optional index / trusted-host via build-args.
+# build-and-push.sh forwards from PIP_* env or `pip3 config get global.*`.
+# Flags are only added when non-empty so default PyPI is unchanged if args are omitted.
+ARG PIP_INDEX_URL
+ARG PIP_EXTRA_INDEX_URL
+ARG PIP_TRUSTED_HOST
+
 # Dependencies and shared Lakebase user (mounted locust.py imports this)
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+RUN set -e; \
+    opts=""; \
+    if [ -n "$PIP_INDEX_URL" ]; then opts="$opts --index-url=$PIP_INDEX_URL"; fi; \
+    if [ -n "$PIP_EXTRA_INDEX_URL" ]; then opts="$opts --extra-index-url=$PIP_EXTRA_INDEX_URL"; fi; \
+    if [ -n "$PIP_TRUSTED_HOST" ]; then opts="$opts --trusted-host=$PIP_TRUSTED_HOST"; fi; \
+    pip install --no-cache-dir $opts -r /tmp/requirements.txt && rm /tmp/requirements.txt
 COPY lakebase_user.py /app/lakebase_user.py
 
 EXPOSE 8089

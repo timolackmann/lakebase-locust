@@ -20,3 +20,9 @@ variable "ip_access_list_label" {
   description = "Label for the IP access list containing Locust IPs"
   default     = "locust-load-test-allow"
 }
+
+variable "create_service_principal" {
+  type        = bool
+  description = "Whether to create the Databricks service principal"
+  default     = true
+}

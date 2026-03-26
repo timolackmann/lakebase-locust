@@ -54,7 +54,8 @@ module "databricks" {
   locust_external_ips            = module.locust.locust_external_ips
   service_principal_display_name = var.databricks_service_principal_display_name
   ip_access_list_label          = var.databricks_ip_access_list_label
-
+  enable_ip_access_list         = var.enable_ip_access_list
+  create_service_principal      = var.run_grant_sp_to_lakebase
   depends_on = [module.locust]
 }
 

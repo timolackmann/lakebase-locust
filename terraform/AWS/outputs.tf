@@ -39,6 +39,19 @@ output "lakebase_project_name" {
   value = module.lakebase.project_name
 }
 
+output "lakebase_project_status" {
+  value = module.lakebase.project_status
+  sensitive = true
+}
+
+output "lakebase_project_uid" {
+  value = module.lakebase.uid
+}
+
+output "lakebase_branch_id" {
+  value = module.lakebase.branch_id
+}
+
 output "databricks_service_principal_id" {
   value = module.databricks.service_principal_id
 }
