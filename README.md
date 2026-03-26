@@ -13,6 +13,7 @@ Locust targets HTTP by default. This repository adds what you need to load-test 
   - [Define your workloads](#define-your-workloads)
   - [Optional: Service principal setup](#optional-service-principal-setup)
   - [Running Locust](#running-locust)
+  - [Server-side metrics](#server-side-metrics)
 
 ## What does this repository contain
 
@@ -20,6 +21,7 @@ This repository includes:
 
 - A custom Locust user class for testing **Databricks Lakebase** (see `[lakebase_user.py](lakebase_user.py)`).
 - A sample scenario in `[locust.py](locust.py)`.
+- **Server-side metrics** collector in `[lakebase_metrics.py](lakebase_metrics.py)` (connections, throughput, cache hits, locks, per-query stats).
 - Deployment helpers for **Kubernetes** and **Terraform** (AWS).
 - Connection settings in `[config.json](config.json)` at the repo root.
 - Quality-of-life scripts to provision a service principal and manage Databricks workspace IP access lists where relevant.
@@ -143,4 +145,33 @@ When you are ready to run distributed load tests, use:
 
 - **[Kubernetes](k8s/README.md)** — build, push, and run Locust on a cluster.
 - **Terraform (AWS)** — infrastructure under `[terraform/AWS/](terraform/AWS/)`; after apply, use `[terraform/AWS/run_locust.sh](terraform/AWS/run_locust.sh)` from that directory to sync config and drive masters/workers (see comments in the script for details).
+
+---
+
+### Server-side metrics
+
+`[lakebase_metrics.py](lakebase_metrics.py)` adds Lakebase server-side observability to any load test. Import it in your locustfile to see Postgres internal metrics alongside client-side latencies in the Locust UI:
+
+```python
+import lakebase_metrics  # noqa: F401
+```
+
+The collector samples these Postgres system views every 5 seconds (configurable via `LAKEBASE_METRICS_INTERVAL`):
+
+| Metric group | Source view | What it shows |
+|---|---|---|
+| `connections/*` | `pg_stat_activity` | Active, idle, and total client connections |
+| `db/*` | `pg_stat_database` | Commits/sec, rollbacks/sec, tuple throughput, cache hit ratio, deadlocks |
+| `locks/*` | `pg_locks` | Granted vs waiting lock counts |
+| `table/*/` | `pg_stat_user_tables` | Seq scans, index scans, live/dead tuples per table |
+| `stmt/*/` | `pg_stat_statements` | Per-query call count deltas and mean execution time |
+
+The `pg_stat_statements` extension is required for per-query metrics. The collector will attempt `CREATE EXTENSION IF NOT EXISTS pg_stat_statements` on startup; if that fails (e.g. insufficient privileges) it gracefully skips those metrics.
+
+The collector runs only on the Locust master (or standalone); workers are unaffected. It opens a dedicated monitoring connection separate from the load-test users.
+
+```bash
+# Override the sampling interval (default: 5 seconds)
+LAKEBASE_METRICS_INTERVAL=10 locust -f locust.py
+```
 
