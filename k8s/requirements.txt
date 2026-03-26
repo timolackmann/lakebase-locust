@@ -1,6 +1,0 @@
-# Locust and Lakebase load-tester dependencies
-# Used by k8s/Dockerfile to build the base image
-locust>=2.32.0
-psycopg2-binary>=2.9.9
-databricks-sdk>=0.26.0
-faker>=30.0.0

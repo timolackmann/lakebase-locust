@@ -1,0 +1,6 @@
+# Locust and Lakebase load-tester dependencies
+locust
+psycopg2-binary
+psycogreen
+databricks-sdk
+faker

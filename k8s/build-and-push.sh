@@ -19,6 +19,8 @@
 #   ARTIFACT_REGISTRY_REPO   - Repository name (default: locust)
 #   IMAGE_NAME         - Image name in the repo (default: locust-lakebase)
 #   IMAGE_TAG          - Tag (default: latest)
+#   PIP_INDEX_URL, PIP_EXTRA_INDEX_URL, PIP_TRUSTED_HOST - forwarded into the build (pip env vars).
+#     If unset, the script tries: pip3 config get global.index-url (and extra-index-url, trusted-host).
 
 set -euo pipefail
 
@@ -47,9 +49,22 @@ fi
 REGISTRY="${ARTIFACT_REGISTRY_REGION}-docker.pkg.dev"
 FULL_IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
 
+# Pip inside docker build does not read the host pip.conf; forward index / trusted-host.
+_pip_cfg_get() {
+  local key="$1"
+  command -v pip3 >/dev/null 2>&1 || return 0
+  pip3 config get "$key" 2>/dev/null | tr -d '\r' | head -n1 || true
+}
+
+_PIP_INDEX_URL="${PIP_INDEX_URL:-}"
+[[ -z "${_PIP_INDEX_URL}" ]] && _PIP_INDEX_URL="$(_pip_cfg_get global.index-url)"
+
+PIP_BUILD_ARGS=()
+[[ -n "${_PIP_INDEX_URL}" ]] && PIP_BUILD_ARGS+=(--build-arg "PIP_INDEX_URL=${_PIP_INDEX_URL}")
+
 # Build for linux/amd64 so the image runs on typical GKE/cloud nodes (avoids exec format error on ARM-built images)
 echo "Building image for linux/amd64 from ${REPO_ROOT} (Dockerfile: k8s/Dockerfile)"
-docker build --platform linux/amd64 -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE_NAME:$IMAGE_TAG" -t "$FULL_IMAGE" "$REPO_ROOT"
+docker build --platform linux/amd64 "${PIP_BUILD_ARGS[@]}" -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE_NAME:$IMAGE_TAG" -t "$FULL_IMAGE" "$REPO_ROOT"
 
 echo "Pushing to Artifact Registry: $FULL_IMAGE"
 docker push "$FULL_IMAGE"

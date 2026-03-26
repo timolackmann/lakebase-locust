@@ -25,13 +25,15 @@ spec:
     spec:
       containers:
         - name: locust
-          image: europe-central2-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase:latest
+          image: us-central1-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase
           imagePullPolicy: Always
           env:
             - name: LOCUST_OPTIONS
               value: "--worker --master-host master"
             - name: CONFIG_PATH
               value: "/mnt/locust-config/config.json"
+          ports:
+            - containerPort: 8089
           volumeMounts:
             - name: locust-script
               mountPath: /mnt/locust
