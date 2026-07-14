@@ -1,9 +1,8 @@
 """
 Lakebase server-side metrics collector for Locust load tests.
 
-Periodically samples Postgres system views and feeds them into Locust's request
-event stream so they appear in the Locust web UI and CSV reports alongside
-client-side latencies.
+Periodically samples Postgres system views and exposes them in a dedicated
+"Lakebase Server" tab in the Locust web UI (open /lakebase on the master).
 
 Collected metrics:
   - pg_stat_activity:    connection counts by state (active, idle, total)
@@ -20,27 +19,30 @@ Usage — add one import to your locustfile (after the gevent/psycogreen setup):
 The collector starts automatically when Locust begins a test and stops when it ends.
 It runs only on the master (or standalone); workers are unaffected.
 
+View metrics: http://<master-host>:8089/lakebase (after starting a test from the UI).
+
 The sampling interval defaults to 5 seconds. Override with:
 
     LAKEBASE_METRICS_INTERVAL=10 locust -f locust.py
 
-The collector opens a dedicated monitoring connection using the same config.json as
-LakebaseUser. If pg_stat_statements is not already enabled, the collector will attempt
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements; if that fails it gracefully skips
-per-query metrics.
+Set LAKEBASE_METRICS_IN_STATS=1 to also emit lakebase_metric rows in the default
+Statistics table (not recommended; values are gauges, not latencies).
 """
 
 import json
 import os
-import time
 import threading
 
 import psycopg2
 from databricks.sdk import WorkspaceClient
+from flask import Blueprint, render_template, request
 from locust import events
 
 DEFAULT_DATABASE = "databricks_postgres"
 METRICS_INTERVAL = int(os.environ.get("LAKEBASE_METRICS_INTERVAL", "5"))
+_EXPORT_TO_STATS = os.environ.get("LAKEBASE_METRICS_IN_STATS", "").lower() in ("1", "true", "yes")
+_STMT_METRIC_LIMIT = 20
+_UI_TAB_KEY = "lakebase-server"
 
 
 def _load_config():
@@ -84,8 +86,23 @@ def _connect(config):
     )
 
 
+def _infer_group_and_unit(name: str) -> tuple[str, str]:
+    group = name.split("/", 1)[0]
+    if name.endswith("_per_sec"):
+        unit = "/s"
+    elif name.endswith("_pct"):
+        unit = "%"
+    elif name.endswith("_ms"):
+        unit = "ms"
+    elif name.endswith("_delta"):
+        unit = "delta"
+    else:
+        unit = "count"
+    return group, unit
+
+
 class LakebaseMetricsCollector:
-    """Samples Lakebase server-side metrics and fires them as Locust request events."""
+    """Samples Lakebase server-side metrics for the Locust web UI."""
 
     def __init__(self):
         self._conn = None
@@ -95,6 +112,34 @@ class LakebaseMetricsCollector:
         self._thread = None
         self._prev_db_stats = None
         self._prev_stmt_stats = {}
+        self._metrics_lock = threading.Lock()
+        self._latest_metrics: dict[str, dict] = {}
+
+    def get_stats_rows(self) -> list[dict]:
+        with self._metrics_lock:
+            rows = [
+                {
+                    "metric": name,
+                    "value": round(entry["value"], 4) if isinstance(entry["value"], float) else entry["value"],
+                    "unit": entry["unit"],
+                    "group": entry["group"],
+                }
+                for name, entry in self._latest_metrics.items()
+                if not name.startswith("stmt/")
+            ]
+            stmt_rows = [
+                {
+                    "metric": name,
+                    "value": round(entry["value"], 4) if isinstance(entry["value"], float) else entry["value"],
+                    "unit": entry["unit"],
+                    "group": entry["group"],
+                }
+                for name, entry in self._latest_metrics.items()
+                if name.startswith("stmt/")
+            ]
+        rows.sort(key=lambda r: (r["group"], r["metric"]))
+        stmt_rows.sort(key=lambda r: r["metric"])
+        return rows + stmt_rows[:_STMT_METRIC_LIMIT]
 
     def start(self, config):
         self._config = config
@@ -116,7 +161,10 @@ class LakebaseMetricsCollector:
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
-        print(f"[lakebase_metrics] Collector started (interval={METRICS_INTERVAL}s)")
+        print(
+            f"[lakebase_metrics] Collector started (interval={METRICS_INTERVAL}s). "
+            f"Open /lakebase in the Locust UI for server metrics."
+        )
 
     def stop(self):
         self._stop.set()
@@ -155,8 +203,6 @@ class LakebaseMetricsCollector:
         if self._has_pg_stat_statements:
             self._sample_statements()
 
-    # -- pg_stat_activity: connection counts by state --
-
     def _sample_activity(self):
         with self._conn.cursor() as cur:
             cur.execute("""
@@ -173,8 +219,6 @@ class LakebaseMetricsCollector:
             total += count
             self._fire(f"connections/{label}", count)
         self._fire("connections/total", total)
-
-    # -- pg_stat_database: throughput and cache hit ratio --
 
     def _sample_database(self):
         with self._conn.cursor() as cur:
@@ -226,8 +270,6 @@ class LakebaseMetricsCollector:
 
         self._prev_db_stats = current
 
-    # -- pg_locks: lock contention --
-
     def _sample_locks(self):
         with self._conn.cursor() as cur:
             cur.execute("""
@@ -238,8 +280,6 @@ class LakebaseMetricsCollector:
             row = cur.fetchone()
         self._fire("locks/granted", row[0])
         self._fire("locks/waiting", row[1])
-
-    # -- pg_stat_user_tables: table-level I/O --
 
     def _sample_tables(self):
         with self._conn.cursor() as cur:
@@ -259,8 +299,6 @@ class LakebaseMetricsCollector:
             self._fire(f"table/{table}/idx_scans", row[2] or 0)
             self._fire(f"table/{table}/live_tuples", row[6] or 0)
             self._fire(f"table/{table}/dead_tuples", row[7] or 0)
-
-    # -- pg_stat_statements: top queries by total_exec_time delta --
 
     def _sample_statements(self):
         with self._conn.cursor() as cur:
@@ -296,21 +334,76 @@ class LakebaseMetricsCollector:
 
         self._prev_stmt_stats = current_stmts
 
-    # -- Fire metric as a Locust request event --
-
     def _fire(self, name, value):
-        events.request.fire(
-            request_type="lakebase_metric",
-            name=name,
-            response_time=value,
-            response_length=0,
-            exception=None,
-        )
+        group, unit = _infer_group_and_unit(name)
+        with self._metrics_lock:
+            self._latest_metrics[name] = {"value": value, "unit": unit, "group": group}
 
+        if _EXPORT_TO_STATS:
+            events.request.fire(
+                request_type="lakebase_metric",
+                name=name,
+                response_time=value,
+                response_length=0,
+                exception=None,
+            )
 
-# --- Locust event hooks: auto-start/stop the collector ---
 
 _collector = LakebaseMetricsCollector()
+_lakebase_ui = Blueprint("lakebase_metrics_ui", __name__)
+
+
+def _lakebase_template_args(environment):
+    environment.web_ui.update_template_args()
+    return {
+        **environment.web_ui.template_args,
+        "extended_tabs": [{"title": "Lakebase Server", "key": _UI_TAB_KEY}],
+        "extended_tables": [
+            {
+                "key": _UI_TAB_KEY,
+                "structure": [
+                    {"key": "metric", "title": "Metric"},
+                    {"key": "value", "title": "Value"},
+                    {"key": "unit", "title": "Unit"},
+                    {"key": "group", "title": "Group"},
+                ],
+            }
+        ],
+    }
+
+
+@events.init.add_listener
+def _register_lakebase_ui(environment, **kwargs):
+    if not environment.web_ui:
+        return
+
+    @environment.web_ui.app.after_request
+    def _inject_extended_stats(response):
+        if request.path != "/stats/requests":
+            return response
+        if not response.content_type or "json" not in response.content_type:
+            return response
+        try:
+            payload = response.get_json()
+        except Exception:
+            return response
+        if not isinstance(payload, dict):
+            return response
+        payload["extended_stats"] = [
+            {"key": _UI_TAB_KEY, "data": _collector.get_stats_rows()}
+        ]
+        response.set_data(json.dumps(payload))
+        response.content_type = "application/json"
+        return response
+
+    @_lakebase_ui.route("/lakebase")
+    def _lakebase_web_ui():
+        return render_template(
+            "index.html",
+            template_args=_lakebase_template_args(environment),
+        )
+
+    environment.web_ui.app.register_blueprint(_lakebase_ui)
 
 
 @events.test_start.add_listener
