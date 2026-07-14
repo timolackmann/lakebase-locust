@@ -24,6 +24,7 @@ build/
 # Config with secrets (copy config.example.json to config.json and fill in values)
 config.json
 test.py
+terraform.tfvars
 # Locust
 *.log
 
@@ -31,5 +32,9 @@ test.py
 *.tfstate
 *.tfstate.*
 .terraform/
-terraform/AWS/.terraform.lock.hcl
-terraform/AWS/terraform.tfvars
+terraform/aws/ec2/.terraform.lock.hcl
+terraform/aws/ec2/terraform.tfvars
+terraform/aws/eks/.terraform.lock.hcl
+terraform/aws/eks/terraform.tfvars
+.vscode/settings.json
+tfplan

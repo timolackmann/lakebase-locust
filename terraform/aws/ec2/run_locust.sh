@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
-CONFIG_PATH="${SCRIPT_DIR}/../../config.json"
+CONFIG_PATH="${SCRIPT_DIR}/../../../config.json"
 
 SSH_OPTS=(
     -o StrictHostKeyChecking=accept-new
@@ -19,10 +19,10 @@ workerCount=$(terraform output -raw worker_per_node)
 sshKeyPath=$(terraform output -raw ssh_keyfile_path)
 
 # Build local file list for rsync (requirements.txt + locustFiles from Terraform)
-rsync_files=( "${SCRIPT_DIR}/../../requirements.txt" )
+rsync_files=( "${SCRIPT_DIR}/../../../requirements.txt" )
 while IFS= read -r file; do
     [ -n "${file}" ] || continue
-    rsync_files+=( "${SCRIPT_DIR}/../../${file}" )
+    rsync_files+=( "${SCRIPT_DIR}/../../../${file}" )
 done < <(terraform output -raw locust_files | tr ',' '\n')
 
 wait_all() {

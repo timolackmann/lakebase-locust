@@ -1,0 +1,53 @@
+#####################
+# AWS Configuration #
+#####################
+
+# AWS region for EKS and related resources.
+region = "<aws-region>"
+
+# AWS CLI named profile for Terraform/provider authentication.
+awsProfile = "<aws-cli-profile-name>"
+
+# Existing VPC ID where the EKS cluster runs (must have NAT gateways for outbound traffic).
+awsVpcId = "<vpc-xxxxxxxx>"
+
+# Private subnet IDs for the EKS cluster and node group (at least two AZs recommended).
+# Subnets must be tagged for EKS, e.g.:
+#   kubernetes.io/cluster/<clusterName> = shared
+#   kubernetes.io/role/internal-elb = 1
+privateSubnetIds = ["<subnet-xxxxxxxx>", "<subnet-yyyyyyyy>"]
+
+########################
+# EKS / Locust Config  #
+########################
+
+clusterName       = "locust-eks"
+kubernetesVersion = "1.31"
+nodeInstanceType  = "m5.large"
+workerReplicas    = 3
+ecrRepositoryName = "locust-lakebase"
+imageTag          = "latest"
+
+#############################
+# Databricks Configuration  #
+#############################
+
+databricksProfile = "<databricks-cli-profile>"
+
+# If true, Terraform creates/updates an IP access list for NAT gateway egress IPs.
+enable_ip_access_list = false # set true on a second apply after NAT gateways are discoverable
+
+databricks_ip_access_list_label = "<ip-access-list-label>"
+
+databricks_service_principal_display_name = "<service-principal-display-name>"
+
+###############################
+# Lakebase Configuration      #
+###############################
+
+lakebaseProjectName = "<lakebase-project-display-name>"
+lakebaseProjectId   = "<lakebase-project-id>"
+lakebasePgVersion   = 17
+lakebase_min_cu     = 0.5
+lakebase_max_cu     = 4
+lakebaseSuspendTimeout = "300s"

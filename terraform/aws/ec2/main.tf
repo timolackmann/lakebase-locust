@@ -22,7 +22,6 @@ provider "databricks" {
   profile = var.databricksProfile
 }
 
-# region and keyPath are root-only (AWS provider + ssh_keyfile_path for run_locust.sh).
 module "locust" {
   source                   = "./modules/locust_infrastructure"
   locustMasterInstanceType = var.locustMasterInstanceType
@@ -35,7 +34,7 @@ module "locust" {
 }
 
 module "lakebase" {
-  source                 = "./modules/lakebase"
+  source                 = "../../modules/lakebase"
   lakebaseProjectName    = var.lakebaseProjectName
   lakebaseProjectId      = var.lakebaseProjectId
   lakebasePgVersion      = var.lakebasePgVersion
@@ -45,7 +44,7 @@ module "lakebase" {
 }
 
 module "databricks" {
-  source                         = "./modules/databricks"
+  source                         = "../../modules/databricks"
   locust_external_ips            = module.locust.locust_external_ips
   service_principal_display_name = var.databricks_service_principal_display_name
   ip_access_list_label           = var.databricks_ip_access_list_label

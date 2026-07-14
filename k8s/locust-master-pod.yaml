@@ -1,10 +1,10 @@
-# Locust master Pod. Replace YOUR_GCP_PROJECT with your GCP project ID (or set the image to the one you pushed).
+# Locust master Pod. Set LOCUST_IMAGE before applying (deploy_locust.sh uses envsubst).
 #
 # Before applying, create both ConfigMaps from your repo root (shared by master and worker):
 #   kubectl create configmap locust-script --from-file=locust.py=./locust.py
 #   kubectl create configmap locust-config --from-file=config.json=./config.json
 #
-# Then: kubectl apply -f k8s/locust-master-pod.yaml
+# Then: export LOCUST_IMAGE=your-registry/locust-lakebase:tag && envsubst < k8s/locust-master-pod.yaml | kubectl apply -f -
 ---
 apiVersion: v1
 kind: Pod
@@ -16,7 +16,7 @@ metadata:
 spec:
   containers:
     - name: locust
-      image: us-central1-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase
+      image: ${LOCUST_IMAGE}
       imagePullPolicy: Always
       env:
         - name: LOCUST_OPTIONS

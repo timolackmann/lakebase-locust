@@ -1,8 +1,10 @@
-# Locust worker Deployment. Uses the same ConfigMaps as the master (locust-script, locust-config).
+# Locust worker Deployment. Set LOCUST_IMAGE and WORKER_REPLICAS before applying (envsubst).
+# Uses the same ConfigMaps as the master (locust-script, locust-config).
 # Ensure the master Pod and Service (name: master) are running so workers can connect.
 #
 # Apply after creating ConfigMaps and the master:
-#   kubectl apply -f k8s/locust-worker-deployment.yaml
+#   export LOCUST_IMAGE=your-registry/locust-lakebase:tag WORKER_REPLICAS=3
+#   envsubst < k8s/locust-worker-deployment.yaml | kubectl apply -f -
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -12,7 +14,7 @@ metadata:
     app: locust
     role: worker
 spec:
-  replicas: 3
+  replicas: ${WORKER_REPLICAS}
   selector:
     matchLabels:
       app: locust
@@ -25,7 +27,7 @@ spec:
     spec:
       containers:
         - name: locust
-          image: us-central1-docker.pkg.dev/gcp-sandbox-field-eng/timo-lackmann/locust-lakebase
+          image: ${LOCUST_IMAGE}
           imagePullPolicy: Always
           env:
             - name: LOCUST_OPTIONS

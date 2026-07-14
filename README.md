@@ -22,10 +22,11 @@ This repository includes:
 - A custom Locust user class for testing **Databricks Lakebase** (see [`lakebase_user.py`](lakebase_user.py)).
 - A sample scenario in [`locust.py`](locust.py).
 - **Server-side metrics** collector in [`lakebase_metrics.py`](lakebase_metrics.py) (connections, throughput, cache hits, locks, per-query stats).
-- Deployment helpers for **Kubernetes** and **Terraform** (AWS).
+- Deployment helpers for **Kubernetes** and **Terraform** (AWS EC2 and AWS EKS).
 - Connection settings in [`config.json`](config.json) at the repo root.
-- **AWS (Terraform):** provisions EC2 Locust nodes, a Lakebase autoscale project, and a dedicated service principal with Lakebase access.
-- **Kubernetes:** [`setup_service_principal.py`](setup_service_principal.py) to create a service principal and populate `config.json`.
+- **AWS EC2 (Terraform):** provisions EC2 Locust nodes, a Lakebase autoscale project, and a dedicated service principal with Lakebase access.
+- **AWS EKS (Terraform):** provisions an EKS cluster, ECR repository, Lakebase project, and service principal; deploys Locust via Kubernetes.
+- **Kubernetes (BYO cluster):** [`setup_service_principal.py`](setup_service_principal.py) to create a service principal and populate `config.json`.
 
 ---
 
@@ -70,9 +71,9 @@ Then edit [`config.json`](config.json).
 - **workspace:** `host`, `client_id`, `client_secret`
 - **lakebase:** `project_id`, `branch_id`, `endpoint_id`, `database`, `user` (usually the same as `client_id`)
 
-On the **AWS Terraform path**, you only need to set `workspace.host` before the first apply. Terraform creates the service principal and Lakebase resources; [`terraform/AWS/run_locust.sh`](terraform/AWS/run_locust.sh) writes the remaining fields into `config.json` from Terraform outputs.
+On the **AWS Terraform paths** (EC2 or EKS), you only need to set `workspace.host` before the first apply. Terraform creates the service principal and Lakebase resources; [`terraform/aws/ec2/run_locust.sh`](terraform/aws/ec2/run_locust.sh) or [`terraform/aws/eks/deploy_locust.sh`](terraform/aws/eks/deploy_locust.sh) writes the remaining fields into `config.json` from Terraform outputs.
 
-For **Kubernetes**, create the service principal with [`setup_service_principal.py`](setup_service_principal.py) (see [Service principal setup (Kubernetes)](#service-principal-setup-kubernetes)).
+For **bring-your-own Kubernetes**, create the service principal with [`setup_service_principal.py`](setup_service_principal.py) (see [Service principal setup (Kubernetes)](#service-principal-setup-kubernetes)).
 
 **Note:** Lakebase can expose read-only nodes. This project uses the **read/write** endpoint for all workloads.
 
@@ -141,7 +142,7 @@ For **Kubernetes** deployments, use [`setup_service_principal.py`](setup_service
 python setup_service_principal.py [--profile CLI-PROFILE] [--display-name NAME] [--config PATH]
 ```
 
-The **AWS Terraform path** does not use this script. Terraform always creates a dedicated service principal, grants Lakebase access via `databricks_postgres_role`, and `run_locust.sh` populates `config.json` automatically.
+The **AWS Terraform paths** do not use this script. Terraform always creates a dedicated service principal, grants Lakebase access via `databricks_postgres_role`, and the deploy script populates `config.json` automatically.
 
 ---
 
@@ -155,10 +156,17 @@ locust -f locust.py
 
 Open [http://localhost:8089](http://localhost:8089), set the number of users and spawn rate, then start the test.
 
-When you are ready to run distributed load tests, use:
+When you are ready to run distributed load tests, choose a deployment path:
 
-- **[Kubernetes](k8s/README.md)** — build, push, and run Locust on a cluster. Provision a service principal with `setup_service_principal.py` before creating the `config.json` ConfigMap.
-- **Terraform (AWS)** — infrastructure under [`terraform/AWS/`](terraform/AWS/). `terraform apply` creates EC2 nodes, a Lakebase autoscale project, and a dedicated service principal. Then run [`terraform/AWS/run_locust.sh`](terraform/AWS/run_locust.sh) from that directory to write `config.json` from Terraform outputs and start the Locust fleet.
+| I want to… | Path | Commands |
+|------------|------|----------|
+| Full stack on AWS EC2 | [`terraform/aws/ec2/`](terraform/aws/ec2/) | `terraform apply` → `./run_locust.sh` |
+| Full stack on AWS EKS | [`terraform/aws/eks/`](terraform/aws/eks/) | `terraform apply` → `./deploy_locust.sh` |
+| Bring your own Kubernetes | [`k8s/`](k8s/) | `setup_service_principal.py` → build image → `kubectl apply` |
+
+- **EC2:** [`terraform/aws/ec2/run_locust.sh`](terraform/aws/ec2/run_locust.sh) writes `config.json` from Terraform outputs and starts the Locust fleet over SSH.
+- **EKS:** [`terraform/aws/eks/deploy_locust.sh`](terraform/aws/eks/deploy_locust.sh) writes `config.json`, builds/pushes to ECR, and applies Kubernetes manifests.
+- **BYO Kubernetes:** see [`k8s/README.md`](k8s/README.md). Provision a service principal with `setup_service_principal.py` before creating the `config.json` ConfigMap.
 
 ---
 
