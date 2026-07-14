@@ -8,15 +8,13 @@ Each simulated user gets its own LakebaseUser instance and its own DB connection
 connection only—no connection or cursor sharing between users or workers, so
 multi-worker and high user counts correctly simulate many independent users.
 
-Config from config.json (or CONFIG_PATH). Set lakebase.mode to "provisioned" (default)
-or "autoscale". Provisioned uses instance_names and workspace.database APIs; autoscale
-uses project_id, branch_id, endpoint_id and workspace.postgres APIs.
+Config from config.json (or CONFIG_PATH). Lakebase autoscale requires
+project_id, branch_id, endpoint_id and uses workspace.postgres APIs.
 """
 
 import json
 import os
 import time
-import uuid
 import psycopg2
 from databricks.sdk import WorkspaceClient
 from locust import User, task
@@ -25,7 +23,7 @@ DEFAULT_DATABASE = "databricks_postgres"
 
 
 def load_config():
-    """Load config from CONFIG_PATH, or config.json, or config.example.json."""
+    """Load config from CONFIG_PATH, or config.json."""
     path = os.environ.get("CONFIG_PATH", "config.json")
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -71,11 +69,10 @@ class LakebaseUser(User):
         super().__init__(environment)
         self.conn = None  # per-user connection; never shared
         self._workspace = None
-        self._instance_name = None
         self._config = None
 
     def on_start(self):
-        """Establish connection to Lakebase using config; dispatches on lakebase.mode (provisioned vs autoscale)."""
+        """Establish connection to Lakebase autoscale using config."""
         self._config = load_config()
         ws = self._config["workspace"]
         self._workspace = WorkspaceClient(
@@ -83,42 +80,16 @@ class LakebaseUser(User):
             client_id=ws["client_id"],
             client_secret=ws["client_secret"],
         )
-        lakebase = self._config["lakebase"]
-        mode = lakebase.get("mode", "provisioned")
-        if mode == "provisioned":
-            self._connect_provisioned(lakebase)
-        elif mode == "autoscale":
-            self._connect_autoscale(lakebase)
-        else:
-            raise ValueError(f"lakebase.mode must be 'provisioned' or 'autoscale', got: {mode!r}")
+        self._connect(self._config["lakebase"])
 
-    def _connect_provisioned(self, lakebase: dict):
-        """Connect using provisioned database: instance_names and workspace.database APIs."""
-        instance_names = lakebase.get("instance_names") or []
-        if not instance_names:
-            raise ValueError("lakebase.instance_names must be a non-empty list for mode=provisioned")
-        database = lakebase.get("database") or DEFAULT_DATABASE
-        instance = self._workspace.database.get_database_instance(name=instance_names[0])
-        cred = self._workspace.database.generate_database_credential(
-            request_id=str(uuid.uuid4()),
-            instance_names=instance_names,
-        )
-        self.conn = psycopg2.connect(
-            host=instance.read_write_dns,
-            dbname=database,
-            user=lakebase["user"],
-            password=cred.token,
-            sslmode="require",
-        )
-
-    def _connect_autoscale(self, lakebase: dict):
-        """Connect using Lakebase Autoscale: project_id, branch_id, endpoint_id and workspace.postgres APIs."""
+    def _connect(self, lakebase: dict):
+        """Connect using Lakebase autoscale: project_id, branch_id, endpoint_id."""
         project_id = lakebase.get("project_id")
         branch_id = lakebase.get("branch_id")
         endpoint_id = lakebase.get("endpoint_id")
         if not project_id or not branch_id or not endpoint_id:
             raise ValueError(
-                "lakebase.project_id, lakebase.branch_id and lakebase.endpoint_id are required for mode=autoscale"
+                "lakebase.project_id, lakebase.branch_id and lakebase.endpoint_id are required"
             )
         endpoint_name = f"projects/{project_id}/branches/{branch_id}/endpoints/{endpoint_id}"
         print(f"Connecting to endpoint: {endpoint_name}")

@@ -16,7 +16,8 @@ build/
 
 # IDE / OS
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .cursor/
 .DS_Store
 

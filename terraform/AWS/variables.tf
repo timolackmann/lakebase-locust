@@ -4,7 +4,7 @@ variable "region" {
 }
 
 variable "awsProfile" {
-  type = string
+  type        = string
   description = "aws profile for EC2 creation"
 }
 
@@ -60,7 +60,7 @@ variable "allowedIngressCidr" {
 variable "locustFiles" {
   type        = list(string)
   description = "Locust related files to be copied to locust master and workers"
-  default     = ["locust.py", "lakebase_user.py", "config.json"]
+  default     = ["locust.py", "lakebase_user.py", "lakebase_metrics.py", "config.json"]
 }
 
 variable "locustExecuteFile" {
@@ -91,7 +91,7 @@ variable "lakebaseProjectName" {
   description = "Lakebase project name"
 }
 
-variable "LakebaseProjectId" {
+variable "lakebaseProjectId" {
   type        = string
   description = "Lakebase project ID"
 }
@@ -102,12 +102,12 @@ variable "lakebasePgVersion" {
   default     = 17
 }
 
-variable "lakebaseEndpoint_min_cu" {
+variable "lakebase_min_cu" {
   type        = number
   description = "Lakebase endpoint minimum CU"
 }
 
-variable "lakebaseEndpoint_max_cu" {
+variable "lakebase_max_cu" {
   type        = number
   description = "Lakebase endpoint maximum CU"
 }
@@ -118,35 +118,8 @@ variable "lakebaseSuspendTimeout" {
   default     = "300s"
 }
 
-# --- Grant service principal to Lakebase Postgres (OAuth) ---
-# After creating a branch and endpoint (in UI or via CLI), set these so Terraform can run the grant script.
-
-variable "lakebase_branch_id" {
-  type        = string
-  description = "Lakebase branch ID (from UI/CLI after creating a branch). Required when run_grant_sp_to_lakebase is true."
-  default     = ""
-}
-
-variable "lakebase_endpoint_id" {
-  type        = string
-  description = "Lakebase endpoint ID (from UI/CLI after creating an endpoint). Required when run_grant_sp_to_lakebase is true."
-  default     = ""
-}
-
-variable "run_grant_sp_to_lakebase" {
-  type        = bool
-  description = "If true, run SQL on Lakebase Postgres to grant the Terraform-created service principal OAuth access (requires lakebase_branch_id and lakebase_endpoint_id)."
-  default     = false
-}
-
-variable "lakebase_database" {
-  type        = string
-  description = "Lakebase Postgres database name used when granting the service principal (default: databricks_postgres)."
-  default     = "databricks_postgres"
-}
-
 variable "enable_ip_access_list" {
   type        = bool
-  description = "Whether to create the IP access list for Locust IPs. Use a plan-time known value so count does not depend on resource attributes (e.g. from module.locust)."
+  description = "Whether to create the IP access list for Locust IPs. Locust egress IPs are only known after the first apply; set to true and apply again to create the allow list."
   default     = false
 }

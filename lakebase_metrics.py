@@ -33,7 +33,6 @@ per-query metrics.
 import json
 import os
 import time
-import uuid
 import threading
 
 import psycopg2
@@ -51,7 +50,7 @@ def _load_config():
 
 
 def _connect(config):
-    """Open a monitoring connection to Lakebase using the same config as LakebaseUser."""
+    """Open a monitoring connection to Lakebase autoscale (same config as LakebaseUser)."""
     ws_cfg = config["workspace"]
     ws = WorkspaceClient(
         host=ws_cfg["host"],
@@ -59,39 +58,30 @@ def _connect(config):
         client_secret=ws_cfg["client_secret"],
     )
     lakebase = config["lakebase"]
-    mode = lakebase.get("mode", "provisioned")
+    project_id = lakebase.get("project_id")
+    branch_id = lakebase.get("branch_id")
+    endpoint_id = lakebase.get("endpoint_id")
+    if not project_id or not branch_id or not endpoint_id:
+        raise ValueError(
+            "lakebase.project_id, lakebase.branch_id and lakebase.endpoint_id are required"
+        )
     database = lakebase.get("database") or DEFAULT_DATABASE
     user = lakebase["user"]
-
-    if mode == "provisioned":
-        instance_names = lakebase.get("instance_names") or []
-        instance = ws.database.get_database_instance(name=instance_names[0])
-        cred = ws.database.generate_database_credential(
-            request_id=str(uuid.uuid4()),
-            instance_names=instance_names,
-        )
-        return psycopg2.connect(
-            host=instance.read_write_dns,
-            dbname=database,
-            user=user,
-            password=cred.token,
-            sslmode="require",
-        )
-    else:
-        project_id = lakebase["project_id"]
-        branch_id = lakebase["branch_id"]
-        endpoint_id = lakebase["endpoint_id"]
-        endpoint_name = f"projects/{project_id}/branches/{branch_id}/endpoints/{endpoint_id}"
-        endpoint = ws.postgres.get_endpoint(name=endpoint_name)
+    endpoint_name = f"projects/{project_id}/branches/{branch_id}/endpoints/{endpoint_id}"
+    endpoint = ws.postgres.get_endpoint(name=endpoint_name)
+    host = None
+    if endpoint.status and endpoint.status.hosts:
         host = endpoint.status.hosts.host
-        cred = ws.postgres.generate_database_credential(endpoint=endpoint_name)
-        return psycopg2.connect(
-            host=host,
-            dbname=database,
-            user=user,
-            password=cred.token,
-            sslmode="require",
-        )
+    if not host:
+        raise ValueError(f"Endpoint {endpoint_name} has no host; endpoint may not be ready")
+    cred = ws.postgres.generate_database_credential(endpoint=endpoint_name)
+    return psycopg2.connect(
+        host=host,
+        dbname=database,
+        user=user,
+        password=cred.token,
+        sslmode="require",
+    )
 
 
 class LakebaseMetricsCollector:
