@@ -8,6 +8,8 @@ from psycogreen.gevent import patch_psycopg
 
 patch_psycopg()
 
+import lakebase_metrics  # noqa: F401
+
 import logging
 import os
 import random

@@ -40,7 +40,7 @@ workernodeCount = 1 # replace with your desired worker node count
 workersPerNode = 8 # replace with your desired users per node
 
 # List of Locust-related files copied to master and workers (paths as required by your layout).
-locustFiles = ["<locust.py>", "<lakebase_user.py>", "<config.json>"]
+locustFiles = ["<locust.py>", "<lakebase_user.py>", "<lakebase_metrics.py>", "<config.json>"]
 
 # Optional: Locust file to run; must be listed in locustFiles. Omit to use module default (locust.py).
 # locustExecuteFile = "<locust.py>"

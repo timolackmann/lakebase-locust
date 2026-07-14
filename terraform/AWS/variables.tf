@@ -60,7 +60,7 @@ variable "allowedIngressCidr" {
 variable "locustFiles" {
   type        = list(string)
   description = "Locust related files to be copied to locust master and workers"
-  default     = ["locust.py", "lakebase_user.py", "config.json"]
+  default     = ["locust.py", "lakebase_user.py", "lakebase_metrics.py", "config.json"]
 }
 
 variable "locustExecuteFile" {

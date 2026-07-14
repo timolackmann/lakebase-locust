@@ -165,7 +165,7 @@ When you are ready to run distributed load tests, use:
 
 ### Server-side metrics
 
-`[lakebase_metrics.py](lakebase_metrics.py)` adds Lakebase server-side observability to any load test. Import it in your locustfile to see Postgres internal metrics alongside client-side latencies in the Locust UI:
+`[lakebase_metrics.py](lakebase_metrics.py)` adds Lakebase server-side observability to any load test. [`locust.py`](locust.py) already imports it so metrics are collected automatically on the Locust master (or in standalone mode). To use metrics in your own locustfile, add:
 
 ```python
 import lakebase_metrics  # noqa: F401
