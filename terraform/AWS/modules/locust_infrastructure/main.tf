@@ -1,12 +1,9 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.34"
+      source = "hashicorp/aws"
     }
   }
-
-  required_version = ">= 1.14.6"
 }
 
 resource "aws_security_group" "Locust_Firewall" {
@@ -49,37 +46,37 @@ resource "aws_vpc_security_group_egress_rule" "all" {
   cidr_ipv4         = "0.0.0.0/0"
 }
 
-data "aws_ami" "AWSlinux2" {
+data "aws_ami" "ubuntu_noble" {
   most_recent = true
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20251212"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 
   owners = ["amazon"]
 }
 
 resource "aws_instance" "locust_main" {
-  ami                    = data.aws_ami.AWSlinux2.id
+  ami                    = data.aws_ami.ubuntu_noble.id
   instance_type          = var.locustMasterInstanceType
   vpc_security_group_ids = [aws_security_group.Locust_Firewall.id]
   key_name               = var.keyName
   subnet_id              = var.awsSubnetId
   tags = {
-    Name      = "locust_main"
+    Name = "locust_main"
   }
 }
 
 resource "aws_instance" "locust_worker" {
   count                  = var.workernodeCount
-  ami                    = data.aws_ami.AWSlinux2.id
+  ami                    = data.aws_ami.ubuntu_noble.id
   instance_type          = var.locustWorkerInstanceType
   vpc_security_group_ids = [aws_security_group.Locust_Firewall.id]
   key_name               = var.keyName
   subnet_id              = var.awsSubnetId
 
   tags = {
-    Name      = "locust_worker",
-  }  
+    Name = "locust_worker"
+  }
 }

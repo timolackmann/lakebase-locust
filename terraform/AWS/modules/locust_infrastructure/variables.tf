@@ -1,8 +1,3 @@
-variable "region" {
-  type        = string
-  description = "AWS Region"
-}
-
 variable "locustMasterInstanceType" {
   type        = string
   description = "AWS Instance Type of the locust primary"
@@ -25,12 +20,6 @@ variable "keyName" {
   type        = string
   description = "Name of your AWS key"
 }
-
-variable "keyPath" {
-  type        = string
-  description = "Full path to your AWS key"
-}
-
 
 variable "awsSubnetId" {
   type        = string

@@ -1,7 +1,3 @@
-output "locust_UI" {
-  value = module.locust.master_public_dns
-}
-
 output "worker_per_node" {
   value = var.workersPerNode
 }
@@ -30,7 +26,6 @@ output "locust_execution_file" {
   value = var.locustExecuteFile
 }
 
-# Lakebase autoscale project (use project_id, branch_id, endpoint_id in config.json for Locust autoscale mode)
 output "lakebase_project_id" {
   value = module.lakebase.project_id
 }
@@ -40,7 +35,7 @@ output "lakebase_project_name" {
 }
 
 output "lakebase_project_status" {
-  value = module.lakebase.project_status
+  value     = module.lakebase.project_status
   sensitive = true
 }
 
@@ -50,6 +45,10 @@ output "lakebase_project_uid" {
 
 output "lakebase_branch_id" {
   value = module.lakebase.branch_id
+}
+
+output "lakebase_endpoint_id" {
+  value = module.lakebase.endpoint_id
 }
 
 output "databricks_service_principal_id" {

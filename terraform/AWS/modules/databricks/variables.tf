@@ -6,7 +6,7 @@ variable "locust_external_ips" {
 variable "enable_ip_access_list" {
   type        = bool
   description = "Whether to create the IP access list for Locust IPs. Use a plan-time known value so count does not depend on resource attributes (e.g. from module.locust)."
-  default     = true
+  default     = false
 }
 
 variable "service_principal_display_name" {
@@ -21,8 +21,7 @@ variable "ip_access_list_label" {
   default     = "locust-load-test-allow"
 }
 
-variable "create_service_principal" {
-  type        = bool
-  description = "Whether to create the Databricks service principal"
-  default     = true
+variable "lakebase_branch_name" {
+  type        = string
+  description = "Full Lakebase branch resource name for Postgres role parent"
 }

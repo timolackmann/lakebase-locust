@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 
 """
-Setup script for Locust + Lakebase: creates a Databricks service principal,
-adds client_id and client_secret to config.json, and grants the service principal
-OAuth access to the Lakebase Postgres instance.
+Setup script for Locust + Lakebase (Kubernetes and manual workflows).
+
+Creates a Databricks service principal, adds client_id and client_secret to
+config.json, and grants the service principal OAuth access to the Lakebase
+Postgres instance.
+
+For the AWS Terraform deployment path, use Terraform instead — it always
+creates a dedicated service principal and run_locust.sh writes config.json.
 
 All operations use the workspace-level Databricks CLI (no account-level commands).
 
 Prerequisites:
 - Databricks CLI installed and authenticated (workspace profile).
-- config.json (or CONFIG_PATH) with workspace.host and lakebase section (mode, project_id/branch_id/endpoint_id or instance_names).
+- config.json (or CONFIG_PATH) with workspace.host and lakebase section
+  (project_id, branch_id, endpoint_id).
 
 Usage:
   python setup_service_principal.py [--profile PROFILE] [--display-name NAME] [--config PATH]
@@ -62,10 +68,9 @@ def main():
         print("config.workspace.host is required.", file=sys.stderr)
         sys.exit(1)
     if not lakebase:
-        print("config.lakebase is required (mode, project_id/branch_id/endpoint_id or instance_names).", file=sys.stderr)
+        print("config.lakebase is required (project_id, branch_id, endpoint_id).", file=sys.stderr)
         sys.exit(1)
 
-    host = workspace["host"].rstrip("/").replace("https://", "").replace("http://", "")
     profile = args.profile
     display_name = args.display_name
 
@@ -131,8 +136,13 @@ def main():
     print(f"Updated {config_path} with client_id and lakebase.user.")
 
     # 4) Add service principal to Postgres (create role so OAuth can be used)
-    mode = lakebase.get("mode", "provisioned")
     database_name = lakebase.get("database") or "databricks_postgres"
+    project_id = lakebase.get("project_id")
+    branch_id = lakebase.get("branch_id")
+    endpoint_id = lakebase.get("endpoint_id")
+    if not all((project_id, branch_id, endpoint_id)):
+        print("lakebase.project_id, branch_id, endpoint_id are required.", file=sys.stderr)
+        return
 
     try:
         import psycopg2
@@ -140,75 +150,32 @@ def main():
         print("psycopg2 not installed; skipping Postgres role creation. Install with: pip install psycopg2-binary", file=sys.stderr)
         return
 
-    if mode == "autoscale":
-        project_id = lakebase.get("project_id")
-        branch_id = lakebase.get("branch_id")
-        endpoint_id = lakebase.get("endpoint_id")
-        if not all((project_id, branch_id, endpoint_id)):
-            print("lakebase.project_id, branch_id, endpoint_id required for autoscale.", file=sys.stderr)
-            return
-        branch_path = f"projects/{project_id}/branches/{branch_id}"
-        endpoint_path = f"{branch_path}/endpoints/{endpoint_id}"
-        # Get host and token as current user (profile)
-        endpoints = run_cli("postgres", "list-endpoints", branch_path, profile=profile)
-        if isinstance(endpoints, list) and endpoints:
-            host_pg = endpoints[0].get("status", {}).get("hosts", {}).get("host")
-        else:
-            print("Could not get postgres endpoint host.", file=sys.stderr)
-            return
-        cred = run_cli("postgres", "generate-database-credential", endpoint_path, profile=profile)
-        token = cred.get("token") if isinstance(cred, dict) else cred
-        if not token:
-            print("Could not get database credential token.", file=sys.stderr)
-            return
-        current_user = run_cli("current-user", "me", profile=profile)
-        user_email = (current_user.get("userName") or (current_user.get("emails") or [{}])[0].get("value") if current_user.get("emails") else None) if isinstance(current_user, dict) else None
-        if not user_email:
-            print("Could not get current user for Postgres connection.", file=sys.stderr)
-            return
-        conn = psycopg2.connect(
-            host=host_pg,
-            port=5432,
-            dbname=database_name,
-            user=user_email,
-            password=token,
-            sslmode="require",
-        )
+    branch_path = f"projects/{project_id}/branches/{branch_id}"
+    endpoint_path = f"{branch_path}/endpoints/{endpoint_id}"
+    endpoints = run_cli("postgres", "list-endpoints", branch_path, profile=profile)
+    if isinstance(endpoints, list) and endpoints:
+        host_pg = endpoints[0].get("status", {}).get("hosts", {}).get("host")
     else:
-        # Provisioned: instance_names, use CLI for credential and instance details
-        instance_names = lakebase.get("instance_names") or []
-        if not instance_names:
-            print("lakebase.instance_names required for provisioned mode.", file=sys.stderr)
-            return
-        instance_name = instance_names[0]
-        instance = run_cli("database", "get-database-instance", instance_name, profile=profile)
-        if isinstance(instance, dict):
-            host_pg = instance.get("read_write_dns") or next((instance.get(k) for k in ("host", "endpoint") if instance.get(k)), None)
-        else:
-            host_pg = None
-        if not host_pg:
-            print("Could not get provisioned instance host from get-database-instance.", file=sys.stderr)
-            return
-        import uuid
-        cred_payload = json.dumps({"instance_names": instance_names})
-        cred = run_cli("database", "generate-database-credential", "--request-id", str(uuid.uuid4()), "--json", cred_payload, profile=profile)
-        token = cred.get("token") if isinstance(cred, dict) else cred
-        if not token:
-            print("Could not get database credential token for provisioned instance.", file=sys.stderr)
-            return
-        current_user = run_cli("current-user", "me", profile=profile)
-        user_email = (current_user.get("userName") or (current_user.get("emails") or [{}])[0].get("value") if current_user.get("emails") else None) if isinstance(current_user, dict) else None
-        if not user_email:
-            print("Could not get current user for Postgres connection.", file=sys.stderr)
-            return
-        conn = psycopg2.connect(
-            host=host_pg,
-            port=5432,
-            dbname=database_name,
-            user=user_email,
-            password=token,
-            sslmode="require",
-        )
+        print("Could not get postgres endpoint host.", file=sys.stderr)
+        return
+    cred = run_cli("postgres", "generate-database-credential", endpoint_path, profile=profile)
+    token = cred.get("token") if isinstance(cred, dict) else cred
+    if not token:
+        print("Could not get database credential token.", file=sys.stderr)
+        return
+    current_user = run_cli("current-user", "me", profile=profile)
+    user_email = (current_user.get("userName") or (current_user.get("emails") or [{}])[0].get("value") if current_user.get("emails") else None) if isinstance(current_user, dict) else None
+    if not user_email:
+        print("Could not get current user for Postgres connection.", file=sys.stderr)
+        return
+    conn = psycopg2.connect(
+        host=host_pg,
+        port=5432,
+        dbname=database_name,
+        user=user_email,
+        password=token,
+        sslmode="require",
+    )
 
     # Create role for service principal (OAuth user = client_id) and grant access
     role_name = str(client_id)

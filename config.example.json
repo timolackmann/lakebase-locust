@@ -5,8 +5,9 @@
     "client_secret": "<client_secret>"
   },
   "lakebase": {
-    "mode": "provisioned",
-    "instance_names": ["my-instance"],
+    "project_id": "<project_id>",
+    "branch_id": "<branch_id>",
+    "endpoint_id": "<endpoint_id>",
     "database": "databricks_postgres",
     "user": "<service_principal_or_user>"
   }

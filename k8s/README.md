@@ -8,7 +8,8 @@ For local setup, `config.json`, and Lakebase authentication, see the [repository
 
 - **Image:** Docker and `gcloud` (logged in), with an Artifact Registry repository created if you push images yourself.
 - **Cluster:** `kubectl` configured to talk to your target cluster.
-- **Test files:** `locust.py` and `config.json` at the [repository root](../README.md) (used when creating ConfigMaps).
+- **Test files:** `locust.py` and `config.json` at the [repository root](../README.md) (copy from [`config.example.json`](../config.example.json); used when creating ConfigMaps).
+- **Service principal:** run [`setup_service_principal.py`](../setup_service_principal.py) to create a dedicated service principal and populate `config.json` before creating the `locust-config` ConfigMap. See [Service principal setup (Kubernetes)](../README.md#service-principal-setup-kubernetes) in the repository README.
 
 ## Table of contents
 

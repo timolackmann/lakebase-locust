@@ -14,12 +14,12 @@ variable "lakebasePgVersion" {
   default     = 17
 }
 
-variable "lakebaseEndpoint_min_cu" {
+variable "lakebase_min_cu" {
   type        = number
   description = "Lakebase autoscale endpoint minimum compute units (e.g. 0.5, 1, 2)"
 }
 
-variable "lakebaseEndpoint_max_cu" {
+variable "lakebase_max_cu" {
   type        = number
   description = "Lakebase autoscale endpoint maximum compute units (e.g. 4, 8, 16)"
 }

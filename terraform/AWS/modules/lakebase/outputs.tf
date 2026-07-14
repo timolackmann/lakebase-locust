@@ -1,5 +1,5 @@
 output "project_id" {
-  description = "Lakebase project ID (use in config.json lakebase.project_id for autoscale mode)"
+  description = "Lakebase project ID (use in config.json lakebase.project_id)"
   value       = databricks_postgres_project.this.project_id
 }
 
@@ -8,10 +8,8 @@ output "project_name" {
   value       = databricks_postgres_project.this.name
 }
 
-# Status may contain branch and endpoint info after default branch/endpoint exist.
-# Use these in config.json for Locust autoscale mode: project_id, branch_id, endpoint_id.
 output "project_status" {
-  description = "Lakebase project status (may include branch and endpoint info)"
+  description = "Lakebase project status"
   value       = try(databricks_postgres_project.this.status, null)
   sensitive   = true
 }
@@ -22,6 +20,16 @@ output "uid" {
 }
 
 output "branch_id" {
-  description = "Lakebase branch ID"
+  description = "Lakebase branch ID (use in config.json lakebase.branch_id)"
   value       = databricks_postgres_branch.load_test_branch.branch_id
+}
+
+output "branch_name" {
+  description = "Lakebase branch full resource name (projects/<project_id>/branches/<branch_id>)"
+  value       = databricks_postgres_branch.load_test_branch.name
+}
+
+output "endpoint_id" {
+  description = "Lakebase endpoint ID (use in config.json lakebase.endpoint_id)"
+  value       = databricks_postgres_endpoint.primary.endpoint_id
 }

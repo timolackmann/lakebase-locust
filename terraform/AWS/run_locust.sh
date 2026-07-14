@@ -25,12 +25,12 @@ declare sshKeyPath=$(terraform output ssh_keyfile_path | tr -d '"')
 echo "Writing Terraform outputs into config.json..."
 LAKEBASE_PROJECT_ID=$(terraform output -raw lakebase_project_id)
 LAKEBASE_BRANCH_ID=$(terraform output -raw lakebase_branch_id)
-LAKEBASE_ENDPOINT_ID="primary"
+LAKEBASE_ENDPOINT_ID=$(terraform output -raw lakebase_endpoint_id)
 SP_ID=$(terraform output -raw databricks_service_principal_id)
 SP_SECRET=$(terraform output -raw service_principal_secret)
 
 if [ ! -f "$CONFIG_PATH" ]; then
-  echo '{"workspace":{"host":"","client_id":"","client_secret":""},"lakebase":{"mode":"autoscale","database":"databricks_postgres"}}' > "$CONFIG_PATH"
+  echo '{"workspace":{"host":"","client_id":"","client_secret":""},"lakebase":{"database":"databricks_postgres"}}' > "$CONFIG_PATH"
 fi
 
 # Merge Terraform outputs into config (preserves existing workspace.host and other fields)
@@ -40,7 +40,7 @@ jq --arg project_id "$LAKEBASE_PROJECT_ID" \
    --arg user "$SP_ID" \
    --arg client_id "$SP_ID" \
    --arg client_secret "$SP_SECRET" \
-   '.workspace.client_id = $client_id | .workspace.client_secret = $client_secret | .lakebase.project_id = $project_id | .lakebase.branch_id = $branch_id | .lakebase.endpoint_id = $endpoint_id | .lakebase.user = $user | .lakebase.mode = "autoscale" | .lakebase.database = (.lakebase.database // "databricks_postgres")' \
+   '.workspace.client_id = $client_id | .workspace.client_secret = $client_secret | .lakebase.project_id = $project_id | .lakebase.branch_id = $branch_id | .lakebase.endpoint_id = $endpoint_id | .lakebase.user = $user | .lakebase.database = (.lakebase.database // "databricks_postgres")' \
    "$CONFIG_PATH" > "${CONFIG_PATH}.tmp" && mv "${CONFIG_PATH}.tmp" "$CONFIG_PATH"
 
 echo "config.json updated with lakebase and service principal from Terraform."

@@ -52,13 +52,15 @@ locustFiles = ["<locust.py>", "<lakebase_user.py>", "<config.json>"]
 # Databricks CLI profile (output of `databricks configure --profile <name>`).
 databricksProfile = "<databricks-cli-profile>"
 
-# If true, Terraform creates/updates an IP access list for Locust egress IPs (use a plan-time-safe value).
-enable_ip_access_list = false # set true or false as needed
+# If true, Terraform creates/updates an IP access list for Locust egress IPs.
+# Locust public IPs are only known after the first apply; set to true and apply again.
+enable_ip_access_list = false # set true on a second apply after EC2 instances exist
 
 # Label for the Databricks IP access list entry.
 databricks_ip_access_list_label = "<ip-access-list-label>"
 
-# Display name for the service principal Terraform creates for Locust/Lakebase integration.
+# Display name for the dedicated service principal Terraform creates for Locust/Lakebase.
+# The SP, its OAuth secret, and Lakebase Postgres role (DATABRICKS_SUPERUSER) are created on every apply.
 databricks_service_principal_display_name = "<service-principal-display-name>"
 
 ###############################
@@ -69,19 +71,16 @@ databricks_service_principal_display_name = "<service-principal-display-name>"
 lakebaseProjectName = "<lakebase-project-display-name>"
 
 # Lakebase project identifier (slug/id used by APIs/UI).
-LakebaseProjectId = "<lakebase-project-id>"
+lakebaseProjectId = "<lakebase-project-id>"
 
 # PostgreSQL major version for the Lakebase instance.
 lakebasePgVersion = 17 # replace if your project uses another major version
 
 # Minimum compute units for the Lakebase endpoint.
-lakebaseEndpoint_min_cu = 0.5 # replace with your minimum CU
+lakebase_min_cu = 0.5 # replace with your minimum CU
 
 # Maximum compute units for the Lakebase endpoint.
-lakebaseEndpoint_max_cu = 4 # replace with your maximum CU
+lakebase_max_cu = 4 # replace with your maximum CU
 
 # Idle suspend timeout for the endpoint (duration string, e.g. 300s).
 lakebaseSuspendTimeout = "<e.g. 300s>"
-
-# If true, run grant logic so the created service principal can access Lakebase Postgres.
-run_grant_sp_to_lakebase = false # set true or false as needed
