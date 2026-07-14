@@ -19,13 +19,13 @@ Locust targets HTTP by default. This repository adds what you need to load-test 
 
 This repository includes:
 
-- A custom Locust user class for testing **Databricks Lakebase** (see `[lakebase_user.py](lakebase_user.py)`).
-- A sample scenario in `[locust.py](locust.py)`.
-- **Server-side metrics** collector in `[lakebase_metrics.py](lakebase_metrics.py)` (connections, throughput, cache hits, locks, per-query stats).
+- A custom Locust user class for testing **Databricks Lakebase** (see [`lakebase_user.py`](lakebase_user.py)).
+- A sample scenario in [`locust.py`](locust.py).
+- **Server-side metrics** collector in [`lakebase_metrics.py`](lakebase_metrics.py) (connections, throughput, cache hits, locks, per-query stats).
 - Deployment helpers for **Kubernetes** and **Terraform** (AWS).
-- Connection settings in `[config.json](config.json)` at the repo root.
+- Connection settings in [`config.json`](config.json) at the repo root.
 - **AWS (Terraform):** provisions EC2 Locust nodes, a Lakebase autoscale project, and a dedicated service principal with Lakebase access.
-- **Kubernetes:** `[setup_service_principal.py](setup_service_principal.py)` to create a service principal and populate `config.json`.
+- **Kubernetes:** [`setup_service_principal.py`](setup_service_principal.py) to create a service principal and populate `config.json`.
 
 ---
 
@@ -33,7 +33,7 @@ This repository includes:
 
 You need **Python** on the machine where Locust runs.
 
-We recommend cloning this repository and using a virtual environment before installing dependencies from `[requirements.txt](requirements.txt)`:
+We recommend cloning this repository and using a virtual environment before installing dependencies from [`requirements.txt`](requirements.txt):
 
 ```bash
 python -m venv venv && source venv/bin/activate
@@ -50,7 +50,7 @@ Once the [prerequisites](#prerequisites) are met, follow the steps below.
 
 ### Configuration
 
-Settings are read from `[config.json](config.json)` at the repository root, unless you set the `**CONFIG_PATH`** environment variable to another file.
+Settings are read from [`config.json`](config.json) at the repository root, unless you set the `CONFIG_PATH` environment variable to another file.
 
 Copy the example config and fill in your workspace and Lakebase details:
 
@@ -58,7 +58,7 @@ Copy the example config and fill in your workspace and Lakebase details:
 cp config.example.json config.json
 ```
 
-Then edit `[config.json](config.json)`.
+Then edit [`config.json`](config.json).
 
 **Important:**
 
@@ -70,9 +70,9 @@ Then edit `[config.json](config.json)`.
 - **workspace:** `host`, `client_id`, `client_secret`
 - **lakebase:** `project_id`, `branch_id`, `endpoint_id`, `database`, `user` (usually the same as `client_id`)
 
-On the **AWS Terraform path**, you only need to set `workspace.host` before the first apply. Terraform creates the service principal and Lakebase resources; `[terraform/AWS/run_locust.sh](terraform/AWS/run_locust.sh)` writes the remaining fields into `config.json` from Terraform outputs.
+On the **AWS Terraform path**, you only need to set `workspace.host` before the first apply. Terraform creates the service principal and Lakebase resources; [`terraform/AWS/run_locust.sh`](terraform/AWS/run_locust.sh) writes the remaining fields into `config.json` from Terraform outputs.
 
-For **Kubernetes**, create the service principal with `[setup_service_principal.py](setup_service_principal.py)` (see [Service principal setup (Kubernetes)](#service-principal-setup-kubernetes)).
+For **Kubernetes**, create the service principal with [`setup_service_principal.py`](setup_service_principal.py) (see [Service principal setup (Kubernetes)](#service-principal-setup-kubernetes)).
 
 **Note:** Lakebase can expose read-only nodes. This project uses the **read/write** endpoint for all workloads.
 
@@ -80,7 +80,7 @@ For **Kubernetes**, create the service principal with `[setup_service_principal.
 
 ### Define your workloads
 
-`[locust.py](locust.py)` shows a sample workload built on the `LakebaseUser` class.
+[`locust.py`](locust.py) shows a sample workload built on the `LakebaseUser` class.
 
 Besides **tasks** (the work Locust measures), you can run setup code before the load test—for example in `on_start`. That code runs for **each worker**, so avoid SQL that conflicts across workers. Prefer idempotent statements such as `CREATE TABLE IF NOT EXISTS` instead of bare `CREATE TABLE`.
 
@@ -119,12 +119,11 @@ Here, `select` runs about twice as often as `insert`.
 
 When you run Locust in **distributed mode** (master + workers), each worker process must generate **globally unique primary keys** for inserts. Locust assigns a stable 0-based ordinal per worker process: `self.environment.runner.worker_index` (see [Locust distributed docs](https://docs.locust.io/en/stable/running-distributed.html)).
 
-The sample in [`locust.py`](locust.py) namespaces `INTEGER` primary keys by worker:
+The sample in [`locust.py`](locust.py) uses a string primary key of the form `{worker_index}-{seq}`:
 
-- **High bits:** `worker_index` (supports up to 2048 worker processes with signed `INTEGER`)
-- **Low bits:** `random.getrandbits(20)` (unique across simulated users on the same worker)
+- **`worker_index`** — Locust worker ordinal (0, 1, 2, …); `0` in standalone/local mode
+- **`seq`** — monotonic per-worker-process counter (`itertools.count`), shared by all simulated users on that worker
 
-For fleets larger than 2048 worker processes, use `BIGINT` primary keys or a composite key such as `(worker_index, seq)`.
 
 **Gevent and heartbeats:** Locust workers use gevent greenlets. psycopg2/libpq performs blocking C I/O that gevent cannot patch, which stalls heartbeat messages and causes the master to drop workers under load. Any Locust file that uses psycopg2 must call `gevent.monkey.patch_all()` and `psycogreen.gevent.patch_psycopg()` **before** importing modules that use `psycopg2` (see the top of [`locust.py`](locust.py)). This is required for distributed runs; see [Testing other systems/protocols](https://docs.locust.io/en/stable/testing-other-systems.html).
 
@@ -132,7 +131,7 @@ For fleets larger than 2048 worker processes, use `BIGINT` primary keys or a com
 
 ### Service principal setup (Kubernetes)
 
-For **Kubernetes** deployments, use `[setup_service_principal.py](setup_service_principal.py)` to create a dedicated Databricks service principal, write `client_id` and `client_secret` into `config.json`, and grant it OAuth access to Lakebase.
+For **Kubernetes** deployments, use [`setup_service_principal.py`](setup_service_principal.py) to create a dedicated Databricks service principal, write `client_id` and `client_secret` into `config.json`, and grant it OAuth access to Lakebase.
 
 **Required in config:** `workspace.host`, and a `lakebase` section with `project_id`, `branch_id`, `endpoint_id`. Optional: `lakebase.database` (default `databricks_postgres`).
 
@@ -159,13 +158,13 @@ Open [http://localhost:8089](http://localhost:8089), set the number of users and
 When you are ready to run distributed load tests, use:
 
 - **[Kubernetes](k8s/README.md)** — build, push, and run Locust on a cluster. Provision a service principal with `setup_service_principal.py` before creating the `config.json` ConfigMap.
-- **Terraform (AWS)** — infrastructure under `[terraform/AWS/](terraform/AWS/)`. `terraform apply` creates EC2 nodes, a Lakebase autoscale project, and a dedicated service principal. Then run `[terraform/AWS/run_locust.sh](terraform/AWS/run_locust.sh)` from that directory to write `config.json` from Terraform outputs and start the Locust fleet.
+- **Terraform (AWS)** — infrastructure under [`terraform/AWS/`](terraform/AWS/). `terraform apply` creates EC2 nodes, a Lakebase autoscale project, and a dedicated service principal. Then run [`terraform/AWS/run_locust.sh`](terraform/AWS/run_locust.sh) from that directory to write `config.json` from Terraform outputs and start the Locust fleet.
 
 ---
 
 ### Server-side metrics
 
-`[lakebase_metrics.py](lakebase_metrics.py)` adds Lakebase server-side observability to any load test. [`locust.py`](locust.py) already imports it so metrics are collected automatically on the Locust master (or in standalone mode). To use metrics in your own locustfile, add:
+[`lakebase_metrics.py`](lakebase_metrics.py) adds Lakebase server-side observability to any load test. [`locust.py`](locust.py) already imports it so metrics are collected automatically on the Locust master (or in standalone mode). To use metrics in your own locustfile, add:
 
 ```python
 import lakebase_metrics  # noqa: F401
@@ -184,6 +183,14 @@ The collector samples these Postgres system views every 5 seconds (configurable 
 The `pg_stat_statements` extension is required for per-query metrics. The collector will attempt `CREATE EXTENSION IF NOT EXISTS pg_stat_statements` on startup; if that fails (e.g. insufficient privileges) it gracefully skips those metrics.
 
 The collector runs only on the Locust master (or standalone); workers are unaffected. It opens a dedicated monitoring connection separate from the load-test users.
+
+**Viewing metrics in the Locust UI**
+
+1. Start a test from the Locust web UI (or via CLI). The collector does not run until a test starts — opening the UI alone is not enough.
+2. Open the **Lakebase Server** tab at `http://<master-host>:8089/lakebase` (replace with your master DNS or `localhost` for local runs).
+3. Metrics refresh on each `/stats/requests` poll (same cadence as the main dashboard), while the collector samples Postgres every 5 seconds by default. Rate metrics such as `db/commits_per_sec` appear after the second sample (~10s).
+
+By default, metrics are shown only in the Lakebase Server tab and are **not** added to the main Statistics table (gauge values are not request latencies). Set `LAKEBASE_METRICS_IN_STATS=1` to also emit `lakebase_metric` rows in Statistics.
 
 ```bash
 # Override the sampling interval (default: 5 seconds)

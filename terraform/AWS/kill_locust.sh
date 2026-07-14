@@ -1,30 +1,38 @@
 #!/bin/bash
 
-# exit when any command fails
-set -e
+set -euo pipefail
 
-# set locust primary host
-declare master=$(terraform output locust_master_dns | tr -d '"')
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
 
-# List of locust worker hosts
-declare -a workerList=$(terraform output locust_workernodes_dns | sed -r 's/[][,]//g' )
+master=$(terraform output -raw locust_master_dns)
+sshKeyPath=$(terraform output -raw ssh_keyfile_path)
 
-# set ssh keyfile path
-declare sshKeyPath=$(terraform output ssh_keyfile_path | tr -d '"')
+SSH_OPTS=(
+    -o StrictHostKeyChecking=accept-new
+    -o ConnectTimeout=15
+    -o BatchMode=yes
+)
 
-# killing worker nodes
+kill_locust_on_host() {
+    local host=$1
+    echo "  -> ${host}"
+    if ssh "${SSH_OPTS[@]}" -i "${sshKeyPath}" "ubuntu@${host}" "pkill -f '[l]ocust' || true"; then
+        echo "     ok"
+    else
+        echo "     WARNING: SSH or kill failed on ${host} (continuing)" >&2
+    fi
+}
+
 echo "killing worker nodes"
-for host in ${workerList[@]}; do
-    host=$(echo ${host} | tr -d '"')
-    echo $host
-    ssh -o StrictHostKeyChecking=accept-new -i ${sshKeyPath} ubuntu@${host} "pkill locust"
-done
+while IFS= read -r host; do
+    [ -n "${host}" ] || continue
+    kill_locust_on_host "${host}"
+done < <(terraform output -json locust_workernodes_dns | jq -r '.[]')
 
-# check parameter if master should also be killed
-if [ $1 = "all" ]; then
+if [ "${1:-}" = "all" ]; then
     echo "killing locust master"
-
-    ssh -o StrictHostKeyChecking=accept-new -i ${sshKeyPath} ubuntu@${master} "pkill locust"
+    kill_locust_on_host "${master}"
 fi
 
 echo "done!"
